@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms; // FolderBrowserDialog
 using MessageBox = System.Windows.MessageBox;
+using System.Collections.Generic;
 
 namespace BravoGameLauncherGui
 {
@@ -11,6 +12,7 @@ namespace BravoGameLauncherGui
     {
         private readonly AppSettings _settings;
         private readonly GameBuildLauncher _launcher;
+        private List<string> _serverFileNames = new();
 
         public MainWindow()
         {
@@ -28,27 +30,36 @@ namespace BravoGameLauncherGui
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
             AppendLog("");
 
-            RefreshRecentFileNames();
+            RefreshComboItems();
+
+            // 창이 로드되면 자동으로 서버 목록 새로고침
+            Loaded += async (_, __) => await RefreshFromServerAsync();
         }
 
         /// <summary>
         /// ComboBox에 최근 파일명 리스트를 바인딩
         /// </summary>
-        private void RefreshRecentFileNames()
+        private void RefreshComboItems()
         {
-            CmbFileName.ItemsSource = null;
-            CmbFileName.ItemsSource = _settings.RecentFileNames;
+            // 서버에서 가져온 목록만 사용
+            var items = new List<string>(_serverFileNames);
 
-            if (_settings.RecentFileNames.Count > 0)
+            CmbFileName.ItemsSource = null;
+            CmbFileName.ItemsSource = items;
+
+            if (items.Count > 0)
             {
-                CmbFileName.Text = _settings.RecentFileNames[0];
+                // 가장 최근(또는 최신) 서버 빌드를 기본 선택
+                CmbFileName.Text = items[0];
             }
             else
             {
-                // 초기 기본값 (원하는 예시 하나 넣어두기)
+                // 서버 목록이 아직 없을 때 기본값 (원하면 공백으로 둬도 됨)
                 CmbFileName.Text = "GW_v0.0.1_CL2229_Shipping_20251201220028.zip";
             }
         }
+
+
 
         /// <summary>
         /// 실행 버튼 클릭: ZIP 파일명 기준으로 빌드 실행
@@ -69,7 +80,7 @@ namespace BravoGameLauncherGui
                 // 최근 목록 업데이트 & 저장
                 _settings.AddRecentFileName(fileName);
                 _settings.Save();
-                RefreshRecentFileNames();
+                RefreshComboItems();
 
                 // 실제 실행 로직 호출
                 await _launcher.RunAsync(fileName);
@@ -161,6 +172,59 @@ namespace BravoGameLauncherGui
         private void MenuExit_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private async void BtnRefreshFromServer_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshFromServerAsync();
+        }
+
+        private async Task RefreshFromServerAsync()
+        {
+            // 버튼에서 호출될 수도 있고, Loaded에서 자동 호출될 수도 있으니
+            // 버튼이 null일 가능성도 고려해서 null 체크
+            if (BtnRefreshFromServer != null)
+                BtnRefreshFromServer.IsEnabled = false;
+
+            AppendLog("[INFO] 서버에서 빌드 리스트를 가져오는 중...");
+
+            try
+            {
+                var result = await BuildListService.FetchBuildListAsync();
+                if (result == null || result.Builds == null || result.Builds.Count == 0)
+                {
+                    AppendLog("[WARN] 서버에서 가져온 빌드 정보가 없습니다.");
+                    return;
+                }
+
+                // buildTime 기준으로 내림차순 정렬
+                result.Builds.Sort((a, b) =>
+                {
+                    var ta = a.BuildTime ?? DateTime.MinValue;
+                    var tb = b.BuildTime ?? DateTime.MinValue;
+                    return tb.CompareTo(ta);
+                });
+
+                _serverFileNames = new List<string>();
+                foreach (var item in result.Builds)
+                {
+                    if (!string.IsNullOrWhiteSpace(item.FileName))
+                        _serverFileNames.Add(item.FileName);
+                }
+
+                AppendLog($"[INFO] 서버 빌드 리스트 {_serverFileNames.Count}개 로드 완료.");
+                RefreshComboItems();
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[ERROR] 서버 빌드 리스트 로드 실패.");
+                AppendLog(ex.Message);
+            }
+            finally
+            {
+                if (BtnRefreshFromServer != null)
+                    BtnRefreshFromServer.IsEnabled = true;
+            }
         }
     }
 }

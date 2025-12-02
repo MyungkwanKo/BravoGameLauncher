@@ -30,16 +30,21 @@
         <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="10,8,10,4">
             <TextBlock Text="빌드 ZIP 파일명:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox x:Name="CmbFileName"
-                      Width="460"
-                      IsEditable="True"
-                      StaysOpenOnEdit="True"
-                      IsTextSearchEnabled="False"
-                      VerticalAlignment="Center" />
+                    Width="420"
+                    IsEditable="True"
+                    StaysOpenOnEdit="True"
+                    IsTextSearchEnabled="False"
+                    VerticalAlignment="Center" />
             <Button x:Name="BtnRun"
                     Content="실행"
                     Width="80"
                     Margin="8,0,0,0"
                     Click="BtnRun_Click" />
+            <Button x:Name="BtnRefreshFromServer"
+                    Content="서버 목록 새로고침"
+                    Width="140"
+                    Margin="8,0,0,0"
+                    Click="BtnRefreshFromServer_Click" />
         </StackPanel>
 
         <!-- 캐시 경로 표시 -->
