@@ -1,26 +1,28 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
-using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Forms; // FolderBrowserDialog
+using MessageBox = System.Windows.MessageBox;
 
 namespace BravoGameLauncherGui
 {
     public partial class MainWindow : Window
     {
-        private readonly GameBuildLauncher _launcher;
         private readonly AppSettings _settings;
+        private readonly GameBuildLauncher _launcher;
 
         public MainWindow()
         {
             InitializeComponent();
 
+            // 설정 로드
             _settings = AppSettings.Load();
-            _launcher = new GameBuildLauncher(AppendLog);
 
+            // 런처 생성 (캐시 루트 경로를 설정에서 가져옴)
+            _launcher = new GameBuildLauncher(AppendLog, _settings.RootDownloadDir);
+
+            // UI 초기화
             TxtCachePath.Text = _launcher.RootDownloadDir;
             AppendLog("=== Bravo Game Launcher (GUI) ===");
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
@@ -43,11 +45,14 @@ namespace BravoGameLauncherGui
             }
             else
             {
-                // 초기 기본값
+                // 초기 기본값 (원하는 예시 하나 넣어두기)
                 CmbFileName.Text = "GW_v0.0.1_CL2229_Shipping_20251201220028.zip";
             }
         }
 
+        /// <summary>
+        /// 실행 버튼 클릭: ZIP 파일명 기준으로 빌드 실행
+        /// </summary>
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
             BtnRun.IsEnabled = false;
@@ -61,12 +66,12 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
-                // 최근 목록에 추가 & 저장
+                // 최근 목록 업데이트 & 저장
                 _settings.AddRecentFileName(fileName);
                 _settings.Save();
                 RefreshRecentFileNames();
 
-                // 실제 실행 로직
+                // 실제 실행 로직 호출
                 await _launcher.RunAsync(fileName);
             }
             catch (Exception ex)
@@ -80,6 +85,9 @@ namespace BravoGameLauncherGui
             }
         }
 
+        /// <summary>
+        /// 로그 출력 (UI 스레드에서 안전하게 호출)
+        /// </summary>
         private void AppendLog(string message)
         {
             Dispatcher.Invoke(() =>
@@ -88,183 +96,71 @@ namespace BravoGameLauncherGui
                 TxtLog.ScrollToEnd();
             });
         }
-    }
 
-    /// <summary>
-    /// 기존에 쓰던 GameBuildLauncher (변경 없음, RootDownloadDir은 내부에서 결정)
-    /// </summary>
-    public class GameBuildLauncher
-    {
-        private const string BaseUrl = "http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds";
-        private const string Platform = "WIN";
+        // ================================
+        // 메뉴: 캐시 경로 변경 / 캐시 삭제 / 종료
+        // ================================
 
-        public string RootDownloadDir { get; }
-
-        private readonly Action<string> _log;
-
-        public GameBuildLauncher(Action<string> logAction)
+        private void MenuChangeCachePath_Click(object sender, RoutedEventArgs e)
         {
-            _log = logAction;
-
-            RootDownloadDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "BravoGameBuilds"
-            );
-        }
-
-        public async Task RunAsync(string zipFileName)
-        {
-            _log("[INFO] 실행 요청: " + zipFileName);
-
-            var buildInfo = ParseBuildFileName(zipFileName);
-            _log($"[INFO] 버전: {buildInfo.Version}, CL: {buildInfo.ChangeList}, Config: {buildInfo.Config}");
-
-            string downloadUrl = BuildDownloadUrl(buildInfo);
-            _log($"[INFO] 다운로드 URL: {downloadUrl}");
-
-            string buildFolder = Path.Combine(RootDownloadDir, buildInfo.Version, buildInfo.OriginalFileNameWithoutExt);
-            string zipPath = Path.Combine(buildFolder, "build.zip");
-            string extractDir = Path.Combine(buildFolder, "unpacked");
-
-            Directory.CreateDirectory(buildFolder);
-
-            // 1) ZIP 존재 여부 확인 및 다운로드
-            if (File.Exists(zipPath))
+            using var dialog = new FolderBrowserDialog
             {
-                _log("[INFO] 기존 ZIP 파일을 발견했습니다. 다운로드를 생략합니다.");
-            }
-            else
-            {
-                _log("[INFO] ZIP 파일이 없습니다. 다운로드를 시작합니다...");
-                await DownloadFileAsync(downloadUrl, zipPath);
-                _log("[INFO] 다운로드 완료.");
-            }
+                Description = "게임 빌드 캐시를 저장할 폴더를 선택하세요.",
+                SelectedPath = _launcher.RootDownloadDir,
+                ShowNewFolderButton = true
+            };
 
-            // 2) 압축 해제 여부 확인 및 수행
-            if (Directory.Exists(extractDir) &&
-                Directory.GetFiles(extractDir, "*", SearchOption.AllDirectories).Length > 0)
-            {
-                _log("[INFO] 이미 압축이 풀려 있습니다. 압축 해제를 생략합니다.");
-            }
-            else
-            {
-                _log("[INFO] 압축 해제를 시작합니다...");
-                if (Directory.Exists(extractDir))
-                {
-                    Directory.Delete(extractDir, recursive: true);
-                }
-                ZipFile.ExtractToDirectory(zipPath, extractDir);
-                _log("[INFO] 압축 해제 완료.");
-            }
-
-            // 3) 실행할 exe 찾기
-            _log("[INFO] 실행 가능한 EXE 파일을 검색합니다...");
-            string? exePath = FindGameExe(extractDir);
-
-            if (exePath == null)
-            {
-                _log("[ERROR] 실행할 EXE 파일을 찾지 못했습니다.");
+            var result = dialog.ShowDialog();
+            if (result != System.Windows.Forms.DialogResult.OK)
                 return;
+
+            string newPath = dialog.SelectedPath;
+            if (string.IsNullOrWhiteSpace(newPath))
+                return;
+
+            // 설정 및 런처에 반영
+            _settings.RootDownloadDir = newPath;
+            _settings.Save();
+
+            _launcher.ChangeRootDownloadDir(newPath);
+
+            TxtCachePath.Text = newPath;
+            AppendLog($"[INFO] 캐시 경로가 변경되었습니다 → {newPath}");
+        }
+
+        private void MenuClearCache_Click(object sender, RoutedEventArgs e)
+        {
+            var result = MessageBox.Show(
+                $"캐시 폴더 전체를 삭제합니다.\n\n경로: {_launcher.RootDownloadDir}\n\n계속하시겠습니까?",
+                "캐시 삭제 확인",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                if (Directory.Exists(_launcher.RootDownloadDir))
+                {
+                    Directory.Delete(_launcher.RootDownloadDir, recursive: true);
+                    AppendLog("[INFO] 캐시 폴더를 삭제했습니다.");
+                }
+                else
+                {
+                    AppendLog("[INFO] 삭제할 캐시 폴더가 없습니다.");
+                }
             }
-
-            _log($"[INFO] 실행 파일: {exePath}");
-            _log("[INFO] 게임을 실행합니다...");
-
-            var psi = new ProcessStartInfo
+            catch (Exception ex)
             {
-                FileName = exePath,
-                WorkingDirectory = Path.GetDirectoryName(exePath) ?? extractDir,
-                UseShellExecute = true
-            };
-
-            Process.Start(psi);
-
-            _log("[INFO] 실행 명령을 보냈습니다.");
-        }
-
-        #region Build Info & Parsing
-
-        private class BuildInfo
-        {
-            public string Version { get; set; } = "";
-            public string ChangeList { get; set; } = "";
-            public string Config { get; set; } = "";
-            public string BuildTime { get; set; } = "";
-            public string OriginalFileName { get; set; } = "";
-            public string OriginalFileNameWithoutExt { get; set; } = "";
-        }
-
-        private BuildInfo ParseBuildFileName(string fileName)
-        {
-            var nameOnly = Path.GetFileName(fileName);
-            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-
-            if (string.IsNullOrEmpty(nameOnly))
-                throw new ArgumentException("유효하지 않은 파일명입니다.", nameof(fileName));
-
-            // 예: GW_v0.0.1_CL2229_Shipping_20251201220028.zip
-            var regex = new Regex(
-                @"^GW_v(?<version>\d+\.\d+\.\d+)_CL(?<cl>\d+)_?(?<config>[A-Za-z0-9]+)?_(?<buildtime>\d+)\.zip$",
-                RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-            var match = regex.Match(nameOnly);
-            if (!match.Success)
-            {
-                throw new FormatException(
-                    $"파일명이 예상한 형식과 다릅니다: {nameOnly}\n예상 예: GW_v0.0.1_CL2229_Shipping_YYYYMMDDHHMMSS.zip");
+                AppendLog("[ERROR] 캐시 삭제 중 오류가 발생했습니다.");
+                AppendLog(ex.Message);
             }
-
-            return new BuildInfo
-            {
-                Version = match.Groups["version"].Value,
-                ChangeList = match.Groups["cl"].Value,
-                Config = match.Groups["config"].Value,
-                BuildTime = match.Groups["buildtime"].Value,
-                OriginalFileName = nameOnly,
-                OriginalFileNameWithoutExt = nameWithoutExt
-            };
         }
 
-        private string BuildDownloadUrl(BuildInfo build)
+        private void MenuExit_Click(object sender, RoutedEventArgs e)
         {
-            return $"{BaseUrl}/{build.Version}/{Platform}/{build.OriginalFileName}";
+            Close();
         }
-
-        #endregion
-
-        #region Download & EXE Finder
-
-        private async Task DownloadFileAsync(string url, string destinationPath)
-        {
-            using var httpClient = new HttpClient();
-
-            using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
-
-            await using var contentStream = await response.Content.ReadAsStreamAsync();
-            await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-            await contentStream.CopyToAsync(fileStream);
-        }
-
-        private string? FindGameExe(string rootDir)
-        {
-            var gwExe = FindFirstExe(rootDir, "GW*.exe");
-            if (gwExe != null) return gwExe;
-
-            var allExe = Directory.GetFiles(rootDir, "*.exe", SearchOption.AllDirectories);
-            if (allExe.Length > 0)
-                return allExe[0];
-
-            return null;
-        }
-
-        private string? FindFirstExe(string rootDir, string pattern)
-        {
-            var files = Directory.GetFiles(rootDir, pattern, SearchOption.AllDirectories);
-            return files.Length > 0 ? files[0] : null;
-        }
-
-        #endregion
     }
 }

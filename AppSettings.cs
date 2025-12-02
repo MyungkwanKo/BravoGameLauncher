@@ -7,16 +7,19 @@ namespace BravoGameLauncherGui
 {
     public class AppSettings
     {
-        /// <summary>
-        /// 최근 입력한 ZIP 파일명 목록 (최대 10개)
-        /// </summary>
+        public string RootDownloadDir { get; set; } = DefaultRootPath;
+
         public List<string> RecentFileNames { get; set; } = new();
 
         public static string SettingsDir =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                         "BravoGameLauncherGui"); // 예: C:\Users\USER\AppData\Roaming\BravoGameLauncherGui
+                         "BravoGameLauncherGui");  
 
         public static string SettingsPath => Path.Combine(SettingsDir, "settings.json");
+
+        public static string DefaultRootPath =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                         "BravoGameBuilds");
 
         public static AppSettings Load()
         {
@@ -30,48 +33,35 @@ namespace BravoGameLauncherGui
                         return settings;
                 }
             }
-            catch
-            {
-                // 실패하면 기본값으로
-            }
-
+            catch { }
+            
             return new AppSettings();
         }
 
         public void Save()
         {
-            try
+            Directory.CreateDirectory(SettingsDir);
+
+            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions
             {
-                Directory.CreateDirectory(SettingsDir);
-                var json = JsonSerializer.Serialize(this, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-                File.WriteAllText(SettingsPath, json);
-            }
-            catch
-            {
-                // 저장 실패는 치명적이지 않으니 무시
-            }
+                WriteIndented = true
+            });
+            File.WriteAllText(SettingsPath, json);
         }
 
-        /// <summary>
-        /// 최근 파일명 목록 업데이트 (중복 제거 + 최대 10개 유지)
-        /// </summary>
         public void AddRecentFileName(string fileName)
         {
             fileName = fileName.Trim();
             if (string.IsNullOrWhiteSpace(fileName))
                 return;
 
-            // 중복 제거
-            RecentFileNames.RemoveAll(x => x.Equals(fileName, StringComparison.OrdinalIgnoreCase));
-            // 맨 앞에 삽입
+            RecentFileNames.RemoveAll(x => 
+                x.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+
             RecentFileNames.Insert(0, fileName);
 
-            const int max = 10;
-            if (RecentFileNames.Count > max)
-                RecentFileNames.RemoveRange(max, RecentFileNames.Count - max);
+            if (RecentFileNames.Count > 10)
+                RecentFileNames.RemoveRange(10, RecentFileNames.Count - 10);
         }
     }
 }
