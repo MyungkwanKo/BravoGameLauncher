@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
@@ -13,17 +12,40 @@ namespace BravoGameLauncherGui
     public partial class MainWindow : Window
     {
         private readonly GameBuildLauncher _launcher;
+        private readonly AppSettings _settings;
 
         public MainWindow()
         {
             InitializeComponent();
 
+            _settings = AppSettings.Load();
             _launcher = new GameBuildLauncher(AppendLog);
 
             TxtCachePath.Text = _launcher.RootDownloadDir;
             AppendLog("=== Bravo Game Launcher (GUI) ===");
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
             AppendLog("");
+
+            RefreshRecentFileNames();
+        }
+
+        /// <summary>
+        /// ComboBox에 최근 파일명 리스트를 바인딩
+        /// </summary>
+        private void RefreshRecentFileNames()
+        {
+            CmbFileName.ItemsSource = null;
+            CmbFileName.ItemsSource = _settings.RecentFileNames;
+
+            if (_settings.RecentFileNames.Count > 0)
+            {
+                CmbFileName.Text = _settings.RecentFileNames[0];
+            }
+            else
+            {
+                // 초기 기본값
+                CmbFileName.Text = "GW_v0.0.1_CL2229_Shipping_20251201220028.zip";
+            }
         }
 
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
@@ -32,13 +54,19 @@ namespace BravoGameLauncherGui
 
             try
             {
-                string fileName = (TxtFileName.Text ?? string.Empty).Trim();
+                string fileName = (CmbFileName.Text ?? string.Empty).Trim();
                 if (string.IsNullOrWhiteSpace(fileName))
                 {
                     AppendLog("[WARN] 파일명을 입력하세요.");
                     return;
                 }
 
+                // 최근 목록에 추가 & 저장
+                _settings.AddRecentFileName(fileName);
+                _settings.Save();
+                RefreshRecentFileNames();
+
+                // 실제 실행 로직
                 await _launcher.RunAsync(fileName);
             }
             catch (Exception ex)
@@ -54,7 +82,6 @@ namespace BravoGameLauncherGui
 
         private void AppendLog(string message)
         {
-            // UI 스레드 보장
             Dispatcher.Invoke(() =>
             {
                 TxtLog.AppendText(message + Environment.NewLine);
@@ -64,7 +91,7 @@ namespace BravoGameLauncherGui
     }
 
     /// <summary>
-    /// 실제 빌드 다운로드/압축/실행 로직을 담은 클래스
+    /// 기존에 쓰던 GameBuildLauncher (변경 없음, RootDownloadDir은 내부에서 결정)
     /// </summary>
     public class GameBuildLauncher
     {
@@ -114,7 +141,8 @@ namespace BravoGameLauncherGui
             }
 
             // 2) 압축 해제 여부 확인 및 수행
-            if (Directory.Exists(extractDir) && Directory.GetFiles(extractDir, "*", SearchOption.AllDirectories).Length > 0)
+            if (Directory.Exists(extractDir) &&
+                Directory.GetFiles(extractDir, "*", SearchOption.AllDirectories).Length > 0)
             {
                 _log("[INFO] 이미 압축이 풀려 있습니다. 압축 해제를 생략합니다.");
             }
@@ -199,7 +227,6 @@ namespace BravoGameLauncherGui
 
         private string BuildDownloadUrl(BuildInfo build)
         {
-            // http://.../GameBuilds/0.0.1/WIN/GW_v0.0.1_CL2229_Shipping_20251201220028.zip
             return $"{BaseUrl}/{build.Version}/{Platform}/{build.OriginalFileName}";
         }
 
@@ -222,11 +249,9 @@ namespace BravoGameLauncherGui
 
         private string? FindGameExe(string rootDir)
         {
-            // 우선 순위 1: GW*.exe
             var gwExe = FindFirstExe(rootDir, "GW*.exe");
             if (gwExe != null) return gwExe;
 
-            // 우선 순위 2: *.exe 중 첫 번째
             var allExe = Directory.GetFiles(rootDir, "*.exe", SearchOption.AllDirectories);
             if (allExe.Length > 0)
                 return allExe[0];
