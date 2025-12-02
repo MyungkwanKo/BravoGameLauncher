@@ -1,0 +1,38 @@
+﻿<Window x:Class="BravoGameLauncherGui.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bravo Game Launcher" Height="260" Width="720"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 입력 라인 -->
+        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="빌드 ZIP 파일명:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="TxtFileName" Width="460" VerticalAlignment="Center"
+                     Text="GW_v0.0.1_CL2229_Shipping_20251201220028.zip" />
+            <Button x:Name="BtnRun" Content="실행" Width="80" Margin="8,0,0,0"
+                    Click="BtnRun_Click" />
+        </StackPanel>
+
+        <!-- 캐시 경로 표시 -->
+        <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="0,0,0,8">
+            <TextBlock Text="로컬 캐시 경로:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBlock x:Name="TxtCachePath" VerticalAlignment="Center"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- 로그 창 -->
+        <TextBox x:Name="TxtLog"
+                 Grid.Row="2"
+                 IsReadOnly="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto"
+                 AcceptsReturn="True" />
+    </Grid>
+</Window>
