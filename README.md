@@ -1,70 +1,78 @@
-📘 Bravo Game Launcher – README
+# Bravo Game Launcher (GUI)
 
-Bravo Game Launcher는 Jenkins에서 생성된 게임 빌드를 자동으로 다운로드/압축해제/실행하도록 돕는 Windows용 GUI 런처입니다.
-빌드 작업자가 ZIP 파일을 직접 찾아서 다운로드하거나 압축을 해제할 필요 없으며, 최신 빌드 목록도 자동으로 서버에서 받아옵니다.
+게임 빌드 작업자를 위한 Windows GUI 런처입니다.  
+Jenkins에서 생성된 최신 게임 빌드를 자동으로 다운로드 → 압축해제 → 실행하도록 도와주며,  
+서버에서 제공되는 최신 10개 빌드 목록을 자동으로 불러와 사용할 수 있습니다.
 
-✨ 주요 기능
-✔ 1) 최신 빌드 목록 자동 로드
+---
 
-런처 실행 시 서버에서 builds.json을 자동으로 다운로드하여 최신 생성된 빌드 목록을 드롭다운으로 표시합니다.
+## ✨ 주요 기능
 
-서버 경로
+### ✔ 최신 빌드 목록 자동 로드
+런처 실행 시 서버에서 `builds.json`을 자동으로 다운로드하여  
+**최신 생성된 빌드 목록을 드롭다운에서 바로 선택할 수 있습니다.**
 
-http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds/builds.json
+- 서버 URL  
+  ```
+  http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds/builds.json
+  ```
+- Jenkins가 유지하는 빌드 정보는 **최대 10개(최신순)**만 유지됩니다.
 
+---
 
-JSON에는 Jenkins에서 빌드 성공한 최근 10개 빌드만 유지됩니다.
+### ✔ 서버 목록 수동 새로고침
+자동 로드 실패 시 **“서버 목록 새로고침”** 버튼으로 즉시 갱신할 수 있습니다.
 
-✔ 2) 서버 목록 수동 새로고침
+---
 
-상단의 “서버 목록 새로고침” 버튼을 누르거나
-자동 로드가 실패한 경우, 手動으로 목록을 갱신할 수 있습니다.
+### ✔ 자동 다운로드 / 압축 해제 / 실행
+게임 실행을 위한 수동 작업을 모두 자동화했습니다.
 
-✔ 3) 자동 다운로드 & 압축 해제 & 실행
+- 기존 다운로드 파일이 있으면 재다운로드 하지 않음  
+- 압축 폴더가 있으면 재압축하지 않음  
+- EXE 파일을 자동 탐색 후 즉시 실행
 
-Zip 파일명을 직접 입력할 필요 없이 선택만 하면 됩니다.
+---
 
-기존에 다운로드 받은 파일이 있으면 재다운로드 하지 않음
+### ✔ 캐시 기능
+게임 빌드 캐시는 다음 위치에 저장됩니다:
 
-압축해제가 되어 있으면 다시 해제하지 않음
-
-실행 버튼을 누르면 자동으로 exe를 찾아 실행
-
-✔ 4) 캐시 시스템
-
-런처는 다운로드/압축해제 파일을 다음 경로에 저장합니다:
-
+```
 C:\ProgramData\BravoGameBuilds\
-     └── 버전\
-         └── buildName\
-             ├── build.zip
-             └── unpacked\ (압축해제)
+    └── {version}\
+        └── {buildName}\
+            ├── build.zip
+            └── unpacked\
+```
 
-✔ 5) 캐시 경로 설정/삭제 기능
+---
 
-“옵션 → 캐시 경로 변경” : 다른 드라이브나 경로로 저장소 이동 가능
+### ✔ 캐시 경로 변경 / 전체 삭제
+메뉴에서 다음 기능을 지원합니다:
 
-“옵션 → 캐시 전체 삭제” : 다운로드 및 압축해제된 파일 전체 삭제
+- **캐시 경로 변경** → 다른 드라이브로 이동 가능  
+- **캐시 전체 삭제** → 다운로드 및 압축해제 기록 전체 제거
 
-✔ 6) 최근 입력 이력 (Local Cache)
+---
 
-드롭다운에서 최근 입력한 ZIP 파일명 10개까지 자동 저장
-(단, UI에는 서버 JSON 목록만 표시함 – 히스토리는 내부 저장용)
+### ✔ Jenkins 자동 JSON 갱신 연동
+프로젝트는 Jenkins 빌드 결과를 기반으로  
+**전역 JSON 파일(`builds.json`)을 자동으로 갱신**하도록 구성되어 있습니다.
 
-✔ 7) Jenkins 자동 JSON 갱신
+특징:
 
-Jenkins 빌드 성공 시 다음 동작 수행:
+- Jenkins 빌드 성공 시에만 JSON 갱신  
+- 이번 빌드에서 생성된 ZIP 파일만 JSON에 반영  
+- JSON에는 최신 10개의 빌드 정보만 유지  
+- `sizeBytes` 등 불필요한 정보는 저장하지 않음  
 
-이번 빌드에서 생성된 ZIP 파일명을 Jenkins ENV 변수에 저장
+---
 
-빌드 성공 후 PowerShell에서 JSON 구조 갱신
+## 🧩 builds.json 구조
 
-최신 10개만 유지하도록 trimming
+Jenkins는 다음 구조의 JSON을 유지합니다:
 
-builds.json 자동 업데이트
-
-🧱 Jenkins – builds.json 자동 업데이트 구조
-빌드 성공 시 저장되는 JSON 구조
+```json
 {
   "project": "GW",
   "builds": [
@@ -77,106 +85,131 @@ builds.json 자동 업데이트
       "buildTime": "2025-12-05T12:30:10",
       "jenkinsBuildNumber": 57
     }
-    // ... 최대 10개
   ]
 }
+```
 
+- JSON은 항상 **최신순**으로 정렬됩니다.  
+- 각 항목은 **하나의 Jenkins 빌드 결과 ZIP 파일**을 의미합니다.
 
-Jenkins가 자동으로 최근 빌드 10개만 유지
+---
 
-런처는 이 JSON만 사용해 최신 빌드 리스트 자동 구성
+## 🖥 GUI 구성
 
-🖥 GUI 화면 설명
+```
 ┌─────────────────────────────────────────────────────────┐
 │ [옵션] 캐시 경로 변경 / 캐시 전체 삭제 / 종료          │
 ├─────────────────────────────────────────────────────────┤
 │ 빌드 ZIP 파일명: [콤보박스 ▼] [실행] [서버 목록 새로고침] │
-│ 캐시 경로:  C:\ProgramData\BravoGameBuilds              │
+│ 캐시 경로: C:\ProgramData\BravoGameBuilds               │
 ├─────────────────────────────────────────────────────────┤
-│ [로그 출력창]                                           │
+│ [로그 창]                                               │
 │ ...                                                     │
 └─────────────────────────────────────────────────────────┘
+```
 
-🔧 설치 / 실행 방법
-1) 런처 실행파일 위치
+---
 
-프로젝트를 빌드하여 생성되는 최종 실행파일은:
+## 🔧 빌드 방법 (.NET 8 기준)
 
-BravoGameLauncherGui\bin\Release\net8.0-windows\win-x64\publish\
-    BravoGameLauncherGui.exe
+### 1) 일반 빌드 (Develop/Test 용)
 
-2) 빌드 방법 (.NET 8.x)
-✔ 일반 빌드 (테스트 목적)
+```bash
 dotnet build -c Release
+```
 
-✔ 단일 EXE로 배포 (실제 배포에 사용)
+### 2) 단일 EXE 생성 (배포용)
+
+```bash
 dotnet publish -c Release -r win-x64 ^
   -p:PublishSingleFile=true ^
   -p:IncludeNativeLibrariesForSelfExtract=true ^
   -p:DebugType=None ^
   --self-contained false
+```
 
+> ⚠ `dotnet build`는 생략 가능  
+> 👉 `dotnet publish`는 build 포함이므로 마지막 publish만 실행해도 완성본이 생성됨
 
-⚠ dotnet build는 실제 배포에는 필요 없음
-👉 publish 한 번이면 build 포함됨
+### 실행 파일 위치
 
-🧩 프로젝트 구조
+```
+BravoGameLauncherGui/bin/Release/net8.0-windows/win-x64/publish/BravoGameLauncherGui.exe
+```
+
+---
+
+## 🔁 런처 동작 흐름
+
+### 1) 런처 실행
+- 자동으로 `builds.json` 다운로드  
+- 콤보박스에 최신 10개 빌드 표시  
+- 실패 시 수동 새로고침 가능
+
+### 2) 실행 버튼 클릭
+- ZIP 미존재 → 다운로드  
+- 압축 미해제 → 자동 압축해제  
+- EXE 자동 탐색 후 실행
+
+### 3) Jenkins 빌드 성공 시
+- 조직된 zip 파일명(env 변수 저장)  
+- post success 단계에서 `builds.json` 갱신  
+- 최신 10개 유지  
+- 런처 실행 시 최신 목록 반영  
+
+---
+
+## 🧱 Jenkins 빌드 연동 구조
+
+### organizeArtifact (WIN)
+- ZIP 파일 생성 후  
+  → `${buildName}.zip` 을 `env.WIN_ZIP_FILES`에 누적
+
+예)
+```
+GW_v0.0.1_CL2301_Shipping_20251205123010.zip
+```
+
+### post { success } 단계
+- `$env:WIN_ZIP_FILES` 읽기  
+- 파일명 기반으로 JSON에만 추가  
+- 기존 10개 초과 시 오래된 항목 삭제  
+- JSON 파일 저장 (`D:\Build\GameBuilds\builds.json`)
+
+---
+
+## 📁 프로젝트 구조
+
+```
 📁 BravoGameLauncherGui
  ├── MainWindow.xaml
  ├── MainWindow.xaml.cs
  ├── GameBuildLauncher.cs
- ├── AppSettings.cs
  ├── BuildListService.cs
+ ├── AppSettings.cs
  ├── BravoGameLauncherGui.csproj
- └── README.md   ← (현재 문서)
+ └── README.md
+```
 
-🔁 런처 전체 동작 흐름
-① 런처 실행
+---
 
-→ Loaded 이벤트
-→ 자동으로 서버 JSON (builds.json) 다운로드
-→ 콤보박스에 최신목록 표시
+## 🧪 테스트 체크리스트
 
-② 사용자 선택 후 "실행" 클릭
+### 런처
+- [ ] 런처 실행 시 자동으로 목록 로딩  
+- [ ] 서버 목록 새로고침 정상 작동  
+- [ ] 선택 후 다운로드/압축/실행 정상  
+- [ ] 캐시 경로 변경 기능 정상  
+- [ ] 캐시 전체 삭제 기능 정상  
 
-→ buildName.zip 다운로드 여부 확인
-→ 압축해제 여부 확인
-→ exe 자동 탐색
-→ 실행
+### Jenkins
+- [ ] JSON 업데이트 로그 출력 확인  
+- [ ] JSON에 “이번 빌드에서 만든 ZIP만” 들어가는지 확인  
+- [ ] JSON에 최대 10개만 존재하는지 확인  
+- [ ] 웹서버에서 builds.json 정상 서빙  
 
-③ Jenkins 빌드 성공
+---
 
-→ organizeArtifact()에서 buildName 저장
-→ post { success } 에서 JSON 갱신
-→ 런처 다음 실행 때 최신 목록 반영
+## 📄 라이선스
 
-🧪 테스트 체크리스트
-런처 측
-
- 런처 실행 시 서버 JSON 자동 로드
-
- 콤보박스 최신순 목록 정상 표시
-
- 선택 후 실행 → 정상 다운로드/압축/실행
-
- 캐시 경로 변경 기능 정상 동작
-
- 캐시 전체 삭제 정상 동작
-
- 서버 목록 새로고침 정상 반영
-
-Jenkins 측
-
- BUILDS.json 업데이트 테스트
-
- 실패 빌드에서는 JSON 갱신되지 않음
-
- ZIP 파일명 여러 개 생성 시 모두 JSON에 반영
-
- JSON 항목 10개 유지
-
- 웹서버에서 최신 JSON 서빙 확인
-
-📄 라이선스
-
-사내 전용. 외부 배포 금지.
+내부 전용 – 외부 배포 금지
