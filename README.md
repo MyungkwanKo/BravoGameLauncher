@@ -1,93 +1,182 @@
-# BravoGameLauncher
+📘 Bravo Game Launcher – README
+
+Bravo Game Launcher는 Jenkins에서 생성된 게임 빌드를 자동으로 다운로드/압축해제/실행하도록 돕는 Windows용 GUI 런처입니다.
+빌드 작업자가 ZIP 파일을 직접 찾아서 다운로드하거나 압축을 해제할 필요 없으며, 최신 빌드 목록도 자동으로 서버에서 받아옵니다.
+
+✨ 주요 기능
+✔ 1) 최신 빌드 목록 자동 로드
+
+런처 실행 시 서버에서 builds.json을 자동으로 다운로드하여 최신 생성된 빌드 목록을 드롭다운으로 표시합니다.
+
+서버 경로
+
+http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds/builds.json
 
 
+JSON에는 Jenkins에서 빌드 성공한 최근 10개 빌드만 유지됩니다.
 
-## Getting started
+✔ 2) 서버 목록 수동 새로고침
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+상단의 “서버 목록 새로고침” 버튼을 누르거나
+자동 로드가 실패한 경우, 手動으로 목록을 갱신할 수 있습니다.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+✔ 3) 자동 다운로드 & 압축 해제 & 실행
 
-## Add your files
+Zip 파일명을 직접 입력할 필요 없이 선택만 하면 됩니다.
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+기존에 다운로드 받은 파일이 있으면 재다운로드 하지 않음
 
-```
-cd existing_repo
-git remote add origin http://bravo-repo.omnicraftlabs.co.kr/bravounit/jenkins/bravogamelauncher.git
-git branch -M main
-git push -uf origin main
-```
+압축해제가 되어 있으면 다시 해제하지 않음
 
-## Integrate with your tools
+실행 버튼을 누르면 자동으로 exe를 찾아 실행
 
-- [ ] [Set up project integrations](http://bravo-repo.omnicraftlabs.co.kr/bravounit/jenkins/bravogamelauncher/-/settings/integrations)
+✔ 4) 캐시 시스템
 
-## Collaborate with your team
+런처는 다운로드/압축해제 파일을 다음 경로에 저장합니다:
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+C:\ProgramData\BravoGameBuilds\
+     └── 버전\
+         └── buildName\
+             ├── build.zip
+             └── unpacked\ (압축해제)
 
-## Test and Deploy
+✔ 5) 캐시 경로 설정/삭제 기능
 
-Use the built-in continuous integration in GitLab.
+“옵션 → 캐시 경로 변경” : 다른 드라이브나 경로로 저장소 이동 가능
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+“옵션 → 캐시 전체 삭제” : 다운로드 및 압축해제된 파일 전체 삭제
 
-***
+✔ 6) 최근 입력 이력 (Local Cache)
 
-# Editing this README
+드롭다운에서 최근 입력한 ZIP 파일명 10개까지 자동 저장
+(단, UI에는 서버 JSON 목록만 표시함 – 히스토리는 내부 저장용)
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+✔ 7) Jenkins 자동 JSON 갱신
 
-## Suggestions for a good README
+Jenkins 빌드 성공 시 다음 동작 수행:
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+이번 빌드에서 생성된 ZIP 파일명을 Jenkins ENV 변수에 저장
 
-## Name
-Choose a self-explaining name for your project.
+빌드 성공 후 PowerShell에서 JSON 구조 갱신
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+최신 10개만 유지하도록 trimming
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+builds.json 자동 업데이트
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+🧱 Jenkins – builds.json 자동 업데이트 구조
+빌드 성공 시 저장되는 JSON 구조
+{
+  "project": "GW",
+  "builds": [
+    {
+      "fileName": "GW_v0.0.1_CL2301_Shipping_20251205123010.zip",
+      "version": "0.0.1",
+      "cl": 2301,
+      "config": "Shipping",
+      "platform": "WIN",
+      "buildTime": "2025-12-05T12:30:10",
+      "jenkinsBuildNumber": 57
+    }
+    // ... 최대 10개
+  ]
+}
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Jenkins가 자동으로 최근 빌드 10개만 유지
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+런처는 이 JSON만 사용해 최신 빌드 리스트 자동 구성
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+🖥 GUI 화면 설명
+┌─────────────────────────────────────────────────────────┐
+│ [옵션] 캐시 경로 변경 / 캐시 전체 삭제 / 종료          │
+├─────────────────────────────────────────────────────────┤
+│ 빌드 ZIP 파일명: [콤보박스 ▼] [실행] [서버 목록 새로고침] │
+│ 캐시 경로:  C:\ProgramData\BravoGameBuilds              │
+├─────────────────────────────────────────────────────────┤
+│ [로그 출력창]                                           │
+│ ...                                                     │
+└─────────────────────────────────────────────────────────┘
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+🔧 설치 / 실행 방법
+1) 런처 실행파일 위치
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+프로젝트를 빌드하여 생성되는 최종 실행파일은:
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+BravoGameLauncherGui\bin\Release\net8.0-windows\win-x64\publish\
+    BravoGameLauncherGui.exe
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+2) 빌드 방법 (.NET 8.x)
+✔ 일반 빌드 (테스트 목적)
+dotnet build -c Release
 
-## License
-For open source projects, say how it is licensed.
+✔ 단일 EXE로 배포 (실제 배포에 사용)
+dotnet publish -c Release -r win-x64 ^
+  -p:PublishSingleFile=true ^
+  -p:IncludeNativeLibrariesForSelfExtract=true ^
+  -p:DebugType=None ^
+  --self-contained false
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+
+⚠ dotnet build는 실제 배포에는 필요 없음
+👉 publish 한 번이면 build 포함됨
+
+🧩 프로젝트 구조
+📁 BravoGameLauncherGui
+ ├── MainWindow.xaml
+ ├── MainWindow.xaml.cs
+ ├── GameBuildLauncher.cs
+ ├── AppSettings.cs
+ ├── BuildListService.cs
+ ├── BravoGameLauncherGui.csproj
+ └── README.md   ← (현재 문서)
+
+🔁 런처 전체 동작 흐름
+① 런처 실행
+
+→ Loaded 이벤트
+→ 자동으로 서버 JSON (builds.json) 다운로드
+→ 콤보박스에 최신목록 표시
+
+② 사용자 선택 후 "실행" 클릭
+
+→ buildName.zip 다운로드 여부 확인
+→ 압축해제 여부 확인
+→ exe 자동 탐색
+→ 실행
+
+③ Jenkins 빌드 성공
+
+→ organizeArtifact()에서 buildName 저장
+→ post { success } 에서 JSON 갱신
+→ 런처 다음 실행 때 최신 목록 반영
+
+🧪 테스트 체크리스트
+런처 측
+
+ 런처 실행 시 서버 JSON 자동 로드
+
+ 콤보박스 최신순 목록 정상 표시
+
+ 선택 후 실행 → 정상 다운로드/압축/실행
+
+ 캐시 경로 변경 기능 정상 동작
+
+ 캐시 전체 삭제 정상 동작
+
+ 서버 목록 새로고침 정상 반영
+
+Jenkins 측
+
+ BUILDS.json 업데이트 테스트
+
+ 실패 빌드에서는 JSON 갱신되지 않음
+
+ ZIP 파일명 여러 개 생성 시 모두 JSON에 반영
+
+ JSON 항목 10개 유지
+
+ 웹서버에서 최신 JSON 서빙 확인
+
+📄 라이선스
+
+사내 전용. 외부 배포 금지.
