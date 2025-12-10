@@ -7,5 +7,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\launcher.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>
