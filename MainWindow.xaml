@@ -26,26 +26,41 @@
             </MenuItem>
         </Menu>
 
-        <!-- 파일명 입력 줄 -->
+        <!-- 파일명 + 빌드 타입 입력 줄 -->
         <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="10,8,10,4">
-            <TextBlock Text="빌드 ZIP 파일명:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <!-- 빌드 타입 선택 -->
+            <TextBlock Text="빌드 타입:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox x:Name="CmbBuildType"
+                    Width="110"
+                    SelectedIndex="0"
+                    VerticalAlignment="Center">
+                <ComboBoxItem Content="Development" />
+                <ComboBoxItem Content="Shipping" />
+            </ComboBox>
+
+            <!-- 간격 -->
+            <TextBlock Width="16" />
+
+            <!-- ZIP 파일명 선택 -->
+            <TextBlock Text="빌드 파일명:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox x:Name="CmbFileName"
-                    Width="420"
+                    Width="280"
                     IsEditable="True"
                     StaysOpenOnEdit="True"
                     IsTextSearchEnabled="False"
                     VerticalAlignment="Center" />
             <Button x:Name="BtnRun"
                     Content="실행"
-                    Width="80"
+                    Width="60"
                     Margin="8,0,0,0"
                     Click="BtnRun_Click" />
             <Button x:Name="BtnRefreshFromServer"
-                    Content="서버 목록 새로고침"
-                    Width="140"
+                    Content="목록 새로고침"
+                    Width="100"
                     Margin="8,0,0,0"
                     Click="BtnRefreshFromServer_Click" />
         </StackPanel>
+
 
         <!-- 캐시 경로 표시 -->
         <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="10,0,10,4">

@@ -5,6 +5,8 @@ using System.Windows;
 using System.Windows.Forms; // FolderBrowserDialog
 using MessageBox = System.Windows.MessageBox;
 using System.Collections.Generic;
+using System.Windows.Controls;
+using System.Linq;
 
 namespace BravoGameLauncherGui
 {
@@ -12,7 +14,15 @@ namespace BravoGameLauncherGui
     {
         private readonly AppSettings _settings;
         private readonly GameBuildLauncher _launcher;
-        private List<string> _serverFileNames = new();
+
+        // 서버에서 받은 빌드 전체 목록 (파일명 + Config)
+        private List<ServerBuildItem> _serverBuilds = new();
+
+        private class ServerBuildItem
+        {
+            public string FileName { get; set; } = string.Empty;
+            public string Config   { get; set; } = string.Empty;
+        }
 
         public MainWindow()
         {
@@ -28,8 +38,13 @@ namespace BravoGameLauncherGui
             TxtCachePath.Text = _launcher.RootDownloadDir;
             AppendLog("=== Bravo Game Launcher (GUI) ===");
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
-            AppendLog("");
+            AppendLog(string.Empty);
 
+            // 빌드 타입 변경 시 목록 갱신
+            if (CmbBuildType != null)
+                CmbBuildType.SelectionChanged += CmbBuildType_SelectionChanged;
+
+            // 초기에는 목록 비워두기
             RefreshComboItems();
 
             // 창이 로드되면 자동으로 서버 목록 새로고침
@@ -37,29 +52,60 @@ namespace BravoGameLauncherGui
         }
 
         /// <summary>
-        /// ComboBox에 최근 파일명 리스트를 바인딩
+        /// ComboBox에 서버 빌드 리스트를 바인딩 (빌드 타입 필터 포함)
         /// </summary>
         private void RefreshComboItems()
         {
-            // 서버에서 가져온 목록만 사용
-            var items = new List<string>(_serverFileNames);
+            // 서버에서 아직 아무 것도 못 받아온 경우
+            if (_serverBuilds == null || _serverBuilds.Count == 0)
+            {
+                CmbFileName.ItemsSource = null;
+                CmbFileName.Text = string.Empty;
+                return;
+            }
 
-            CmbFileName.ItemsSource = null;
+            // 선택된 빌드 타입 (기본값: Development)
+            string selectedType = "Development";
+
+            if (CmbBuildType?.SelectedItem is ComboBoxItem cbi &&
+                cbi.Content is string content &&
+                !string.IsNullOrWhiteSpace(content))
+            {
+                selectedType = content;
+            }
+
+            // 선택한 타입만 필터링
+            var items = _serverBuilds
+                .Where(b => string.Equals(
+                    b.Config,
+                    selectedType,
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(b => b.FileName)
+                .ToList();
+
+            // 선택한 타입의 빌드가 하나도 없는 경우
+            if (items.Count == 0)
+            {
+                CmbFileName.ItemsSource = null;
+                CmbFileName.Text        = string.Empty;
+
+                AppendLog($"[WARN] 서버 빌드 리스트 중 '{selectedType}' 타입 빌드가 없습니다.");
+                return;
+            }
+
+            // 콤보박스에 목록 반영
             CmbFileName.ItemsSource = items;
 
-            if (items.Count > 0)
-            {
-                // 가장 최근(또는 최신) 서버 빌드를 기본 선택
-                CmbFileName.Text = items[0];
-            }
-            else
-            {
-                // 서버 목록이 아직 없을 때 기본값 (원하면 공백으로 둬도 됨)
-                CmbFileName.Text = "GW_v0.0.1_CL2229_Shipping_20251201220028.zip";
-            }
+            // 기본 선택은 최신 하나
+            CmbFileName.Text = items[0];
+
+            AppendLog($"[INFO] '{selectedType}' 타입 빌드 {items.Count}개 표시.");
         }
 
-
+        private void CmbBuildType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RefreshComboItems();
+        }
 
         /// <summary>
         /// 실행 버튼 클릭: ZIP 파일명 기준으로 빌드 실행
@@ -111,7 +157,6 @@ namespace BravoGameLauncherGui
         // ================================
         // 메뉴: 캐시 경로 변경 / 캐시 삭제 / 종료
         // ================================
-
         private void MenuChangeCachePath_Click(object sender, RoutedEventArgs e)
         {
             using var dialog = new FolderBrowserDialog
@@ -194,6 +239,8 @@ namespace BravoGameLauncherGui
                 if (result == null || result.Builds == null || result.Builds.Count == 0)
                 {
                     AppendLog("[WARN] 서버에서 가져온 빌드 정보가 없습니다.");
+                    _serverBuilds.Clear();
+                    RefreshComboItems();
                     return;
                 }
 
@@ -205,14 +252,25 @@ namespace BravoGameLauncherGui
                     return tb.CompareTo(ta);
                 });
 
-                _serverFileNames = new List<string>();
+                // 서버 전체 빌드 목록 저장 (파일명 + Config)
+                _serverBuilds = new List<ServerBuildItem>();
+
                 foreach (var item in result.Builds)
                 {
-                    if (!string.IsNullOrWhiteSpace(item.FileName))
-                        _serverFileNames.Add(item.FileName);
+                    if (string.IsNullOrWhiteSpace(item.FileName))
+                        continue;
+
+                    // 파일명에서 Config(Development/Shipping) 파싱
+                    var config = GetBuildConfigFromFileName(item.FileName);
+
+                    _serverBuilds.Add(new ServerBuildItem
+                    {
+                        FileName = item.FileName,
+                        Config   = config
+                    });
                 }
 
-                AppendLog($"[INFO] 서버 빌드 리스트 {_serverFileNames.Count}개 로드 완료.");
+                AppendLog($"[INFO] 서버 빌드 리스트 {_serverBuilds.Count}개 로드 완료.");
                 RefreshComboItems();
             }
             catch (Exception ex)
@@ -225,6 +283,21 @@ namespace BravoGameLauncherGui
                 if (BtnRefreshFromServer != null)
                     BtnRefreshFromServer.IsEnabled = true;
             }
+        }
+
+        private static string GetBuildConfigFromFileName(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return "Unknown";
+
+            // 예: GW_v0.0.1_CL2301_Shipping_20251205123010.zip
+            if (fileName.IndexOf("_Shipping_", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "Shipping";
+
+            if (fileName.IndexOf("_Development_", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "Development";
+
+            return "Unknown";
         }
     }
 }
