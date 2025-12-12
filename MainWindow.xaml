@@ -1,7 +1,7 @@
 ﻿<Window x:Class="BravoGameLauncherGui.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Bravo Game Launcher"
+        Title="GW Launcher"
         Height="450"
         Width="900"
         WindowStartupLocation="CenterScreen">
@@ -30,8 +30,9 @@
             </MenuItem>
         </Menu>
 
-        <!-- 빌드 타입 + 실행/서버 버튼 -->
+        <!-- 빌드 타입 + 빌드목록 새로고침 + 실행 + 창모드 + Local/Server -->
         <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="10,8,10,4">
+            <!-- 빌드 타입 -->
             <TextBlock Text="빌드 타입:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox x:Name="CmbBuildType"
                       Width="130"
@@ -43,16 +44,41 @@
 
             <TextBlock Width="20" />
 
+            <!-- 빌드 목록 새로고침 -->
+            <Button x:Name="BtnRefreshFromServer"
+                    Content="빌드목록 새로고침"
+                    Width="140"
+                    Margin="0,0,8,0"
+                    Click="BtnRefreshFromServer_Click" />
+
+            <!-- 실행 -->
             <Button x:Name="BtnRun"
                     Content="실행"
                     Width="80"
                     Margin="0,0,8,0"
                     Click="BtnRun_Click" />
 
-            <Button x:Name="BtnRefreshFromServer"
-                    Content="서버 새로고침"
-                    Width="120"
-                    Click="BtnRefreshFromServer_Click" />
+            <!-- 창모드 체크 -->
+            <CheckBox x:Name="CbWindowed"
+                      Content="창모드"
+                      VerticalAlignment="Center"
+                      Margin="0,0,8,0" />
+
+            <!-- 구분선 -->
+            <TextBlock Text="│"
+                       VerticalAlignment="Center"
+                       Margin="4,0,4,0" />
+
+            <!-- Local / Server 선택 (서버 선택 영역) -->
+            <CheckBox x:Name="CbLocal"
+                      Content="Local"
+                      VerticalAlignment="Center"
+                      Margin="0,0,4,0"
+                      Click="CbLocal_Click" />
+            <CheckBox x:Name="CbServer"
+                      Content="Server"
+                      VerticalAlignment="Center"
+                      Click="CbServer_Click" />
         </StackPanel>
 
         <!-- 캐시 경로 표시 -->

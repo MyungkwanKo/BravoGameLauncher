@@ -42,12 +42,16 @@ namespace BravoGameLauncherGui
 
             // UI 초기화
             TxtCachePath.Text = _launcher.RootDownloadDir;
-            AppendLog("=== Bravo Game Launcher (GUI) ===");
+            AppendLog("=== GW Launcher (GUI) ===");
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
             AppendLog(string.Empty);
 
             // 빌드 타입 변경 시 목록 갱신
             CmbBuildType.SelectionChanged += (_, __) => RefreshBuildListUI();
+
+            // Local / Server 기본값: Local만 선택
+            CbLocal.IsChecked  = true;
+            CbServer.IsChecked = false;
 
             // 창이 로드되면 자동으로 서버 목록 새로고침
             Loaded += async (_, __) => await RefreshFromServerAsync();
@@ -99,6 +103,37 @@ namespace BravoGameLauncherGui
         }
 
         // ================================
+        // Local / Server 선택 (단일선택 유지)
+        // ================================
+        private void CbLocal_Click(object sender, RoutedEventArgs e)
+        {
+            if (CbLocal.IsChecked == true)
+            {
+                CbServer.IsChecked = false;
+            }
+            else
+            {
+                // 둘 다 해제되는 경우 방지 → 항상 하나는 선택
+                if (CbServer.IsChecked != true)
+                    CbLocal.IsChecked = true;
+            }
+        }
+
+        private void CbServer_Click(object sender, RoutedEventArgs e)
+        {
+            if (CbServer.IsChecked == true)
+            {
+                CbLocal.IsChecked = false;
+            }
+            else
+            {
+                // 둘 다 해제되는 경우 방지 → 항상 하나는 선택
+                if (CbLocal.IsChecked != true)
+                    CbServer.IsChecked = true;
+            }
+        }
+
+        // ================================
         // 실행 버튼
         // ================================
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
@@ -109,7 +144,7 @@ namespace BravoGameLauncherGui
             {
                 if (LvBuilds.ItemsSource == null)
                 {
-                    AppendLog("[WARN] 실행할 빌드가 없습니다. 서버 목록을 먼저 새로고침하세요.");
+                    AppendLog("[WARN] 실행할 빌드가 없습니다. 빌드목록을 먼저 새로고침하세요.");
                     return;
                 }
 
@@ -119,13 +154,20 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
+                // Local / Server 선택에 따라 IP 결정
+                string ipAddress = "localhost";
+                if (CbServer.IsChecked == true)
+                    ipAddress = "100.66.7.43";
+
+                bool useWindowed = CbWindowed.IsChecked == true;
+
                 string fileName = selected.FileName;
 
-                // 기존처럼 최근 목록에 추가 (AppSettings 기능 유지)
+                // 최근 목록 기록 유지
                 _settings.AddRecentFileName(fileName);
                 _settings.Save();
 
-                await _launcher.RunAsync(fileName);
+                await _launcher.RunAsync(fileName, ipAddress, useWindowed);
             }
             catch (Exception ex)
             {
@@ -215,7 +257,7 @@ namespace BravoGameLauncherGui
         }
 
         // ================================
-        // 서버 목록 새로고침
+        // 빌드목록 새로고침
         // ================================
         private async void BtnRefreshFromServer_Click(object sender, RoutedEventArgs e)
         {

@@ -8,5 +8,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\launcher.ico</ApplicationIcon>
+    <AssemblyName>GWLauncher</AssemblyName>
+    <ApplicationTitle>GW Launcher</ApplicationTitle>
   </PropertyGroup>
 </Project>

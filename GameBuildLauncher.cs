@@ -8,204 +8,205 @@ using System.Threading.Tasks;
 
 namespace BravoGameLauncherGui
 {
-    /// <summary>
-    /// 빌드 ZIP 다운로드 / 압축 해제 / EXE 실행을 담당하는 로직 클래스
-    /// </summary>
     public class GameBuildLauncher
     {
-        private const string BaseUrl = "http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds";
-        private const string Platform = "WIN";
-
         private readonly Action<string> _log;
+        private static readonly HttpClient _httpClient = new HttpClient();
 
-        /// <summary>
-        /// 현재 사용 중인 캐시 루트 경로
-        /// </summary>
+        // 서버 빌드 베이스 URL (버전/플랫폼/파일명 붙여서 사용)
+        private const string BuildServerBaseUrl = "http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds";
+
         public string RootDownloadDir { get; private set; }
 
-        public GameBuildLauncher(Action<string> log, string rootPath)
+        public GameBuildLauncher(Action<string> logCallback, string rootDownloadDir)
         {
-            _log = log;
+            _log = logCallback ?? (_ => { });
+            RootDownloadDir = string.IsNullOrWhiteSpace(rootDownloadDir)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "BravoGameBuilds")
+                : rootDownloadDir;
 
-            RootDownloadDir = string.IsNullOrWhiteSpace(rootPath)
-                ? AppSettings.DefaultRootPath
-                : rootPath;
+            Directory.CreateDirectory(RootDownloadDir);
         }
 
-        /// <summary>
-        /// 캐시 루트 경로 변경
-        /// </summary>
-        public void ChangeRootDownloadDir(string newPath)
+        public void ChangeRootDownloadDir(string newRoot)
         {
-            if (string.IsNullOrWhiteSpace(newPath))
+            if (string.IsNullOrWhiteSpace(newRoot))
                 return;
 
-            RootDownloadDir = newPath;
-            _log($"[INFO] 캐시 경로가 변경되었습니다 → {newPath}");
+            RootDownloadDir = newRoot;
+            Directory.CreateDirectory(RootDownloadDir);
+            _log($"[INFO] GameBuildLauncher RootDownloadDir 변경: {RootDownloadDir}");
         }
 
         /// <summary>
-        /// ZIP 파일명을 입력 받아 다운로드/압축/실행 전체 플로우 수행
+        /// 기존 호환용 (IP/창모드 기본값)
         /// </summary>
-        public async Task RunAsync(string zipFileName)
+        public Task RunAsync(string zipFileName)
         {
-            _log("[INFO] 실행 요청: " + zipFileName);
+            return RunAsync(zipFileName, "localhost", false);
+        }
 
-            var buildInfo = ParseBuildFileName(zipFileName);
-            _log($"[INFO] 버전: {buildInfo.Version}, CL: {buildInfo.ChangeList}, Config: {buildInfo.Config}");
-
-            string downloadUrl = BuildDownloadUrl(buildInfo);
-            _log($"[INFO] 다운로드 URL: {downloadUrl}");
-
-            string buildFolder = Path.Combine(RootDownloadDir, buildInfo.Version, buildInfo.OriginalFileNameWithoutExt);
-            string zipPath = Path.Combine(buildFolder, "build.zip");
-            string extractDir = Path.Combine(buildFolder, "unpacked");
-
-            Directory.CreateDirectory(buildFolder);
-
-            // 1) ZIP 존재 여부 확인 및 다운로드
-            if (File.Exists(zipPath))
+        /// <summary>
+        /// 지정한 ZIP 빌드를 다운로드/압축해제 후
+        /// IP 및 창모드 옵션에 맞춰 실행
+        /// </summary>
+        public async Task RunAsync(string zipFileName, string ipAddress, bool useWindowed)
+        {
+            if (string.IsNullOrWhiteSpace(zipFileName))
             {
-                _log("[INFO] 기존 ZIP 파일을 발견했습니다. 다운로드를 생략합니다.");
-            }
-            else
-            {
-                _log("[INFO] ZIP 파일이 없습니다. 다운로드를 시작합니다...");
-                await DownloadFileAsync(downloadUrl, zipPath);
-                _log("[INFO] 다운로드 완료.");
+                _log("[ERROR] ZIP 파일명이 비어 있습니다.");
+                return;
             }
 
-            // 2) 압축 해제 여부 확인 및 수행
-            if (Directory.Exists(extractDir) &&
-                Directory.GetFiles(extractDir, "*", SearchOption.AllDirectories).Length > 0)
+            var buildInfo = ParseBuildInfoFromFileName(zipFileName);
+            string version = string.IsNullOrWhiteSpace(buildInfo.Version)
+                ? "Unknown"
+                : buildInfo.Version;
+
+            string buildName = Path.GetFileNameWithoutExtension(zipFileName);
+
+            string versionRoot = Path.Combine(RootDownloadDir, version);
+            string buildRoot   = Path.Combine(versionRoot, buildName);
+            string zipPath     = Path.Combine(buildRoot, "build.zip");
+            string unpackDir   = Path.Combine(buildRoot, "unpacked");
+
+            Directory.CreateDirectory(buildRoot);
+
+            // 1) ZIP 다운로드 (없으면)
+            if (!File.Exists(zipPath))
             {
-                _log("[INFO] 이미 압축이 풀려 있습니다. 압축 해제를 생략합니다.");
-            }
-            else
-            {
-                _log("[INFO] 압축 해제를 시작합니다...");
-                if (Directory.Exists(extractDir))
+                string url = $"{BuildServerBaseUrl}/{version}/WIN/{zipFileName}";
+                _log($"[INFO] ZIP 파일이 없어 서버에서 다운로드합니다.");
+                _log($"       URL: {url}");
+                try
                 {
-                    Directory.Delete(extractDir, recursive: true);
-                }
+                    using var resp = await _httpClient.GetAsync(url);
+                    resp.EnsureSuccessStatusCode();
 
-                ZipFile.ExtractToDirectory(zipPath, extractDir);
-                _log("[INFO] 압축 해제 완료.");
+                    await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                    await resp.Content.CopyToAsync(fs);
+
+                    _log($"[INFO] 다운로드 완료 → {zipPath}");
+                }
+                catch (Exception ex)
+                {
+                    _log("[ERROR] ZIP 다운로드 중 오류가 발생했습니다.");
+                    _log(ex.Message);
+                    return;
+                }
+            }
+            else
+            {
+                _log($"[INFO] 기존 ZIP 파일 사용 → {zipPath}");
             }
 
-            // 3) 실행할 exe 찾기
-            _log("[INFO] 실행 가능한 EXE 파일을 검색합니다...");
-            string? exePath = FindGameExe(extractDir);
+            // 2) 압축 해제 (없으면)
+            if (!Directory.Exists(unpackDir) || Directory.GetFileSystemEntries(unpackDir).Length == 0)
+            {
+                _log($"[INFO] ZIP 압축 해제 중... → {unpackDir}");
 
+                try
+                {
+                    if (Directory.Exists(unpackDir))
+                        Directory.Delete(unpackDir, recursive: true);
+
+                    ZipFile.ExtractToDirectory(zipPath, unpackDir);
+                    _log("[INFO] 압축 해제 완료.");
+                }
+                catch (Exception ex)
+                {
+                    _log("[ERROR] 압축 해제 중 오류가 발생했습니다.");
+                    _log(ex.Message);
+                    return;
+                }
+            }
+            else
+            {
+                _log($"[INFO] 이미 압축 해제된 폴더 사용 → {unpackDir}");
+            }
+
+            // 3) 실행 파일 찾기 (우선 GW.exe, 없으면 첫 번째 .exe)
+            string? exePath = FindExecutable(unpackDir);
             if (exePath == null)
             {
-                _log("[ERROR] 실행할 EXE 파일을 찾지 못했습니다.");
+                _log("[ERROR] 실행 가능한 exe 파일을 찾지 못했습니다.");
                 return;
             }
 
-            _log($"[INFO] 실행 파일: {exePath}");
-            _log("[INFO] 게임을 실행합니다...");
+            // 4) 실행 인자 구성
+            if (string.IsNullOrWhiteSpace(ipAddress))
+                ipAddress = "localhost";
 
-            var psi = new ProcessStartInfo
+            string args = $"{ipAddress}:7777 -log";
+            if (useWindowed)
             {
-                FileName = exePath,
-                WorkingDirectory = Path.GetDirectoryName(exePath) ?? extractDir,
-                UseShellExecute = true
-            };
-
-            Process.Start(psi);
-
-            _log("[INFO] 실행 명령을 보냈습니다.");
-        }
-
-        // ========================
-        // 내부 Helper 메서드들
-        // ========================
-
-        private class BuildInfo
-        {
-            public string Version { get; set; } = "";
-            public string ChangeList { get; set; } = "";
-            public string Config { get; set; } = "";
-            public string BuildTime { get; set; } = "";
-            public string OriginalFileName { get; set; } = "";
-            public string OriginalFileNameWithoutExt { get; set; } = "";
-        }
-
-        /// <summary>
-        /// 파일명 파싱
-        /// 예: GW_v0.0.1_CL2229_Shipping_20251201220028.zip
-        /// </summary>
-        private BuildInfo ParseBuildFileName(string fileName)
-        {
-            var nameOnly = Path.GetFileName(fileName);
-            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-
-            if (string.IsNullOrEmpty(nameOnly))
-                throw new ArgumentException("유효하지 않은 파일명입니다.", nameof(fileName));
-
-            var regex = new Regex(
-                @"^GW_v(?<version>\d+\.\d+\.\d+)_CL(?<cl>\d+)_?(?<config>[A-Za-z0-9]+)?_(?<buildtime>\d+)\.zip$",
-                RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-            var match = regex.Match(nameOnly);
-            if (!match.Success)
-            {
-                throw new FormatException(
-                    $"파일명이 예상한 형식과 다릅니다: {nameOnly}\n예상 예: GW_v0.0.1_CL2229_Shipping_YYYYMMDDHHMMSS.zip");
+                args += " -windowed -ResX=1920 -ResY=1080";
             }
 
-            return new BuildInfo
+            _log("[INFO] 빌드 실행을 시작합니다.");
+            _log($"       EXE : {exePath}");
+            _log($"       Args: {args}");
+
+            try
             {
-                Version = match.Groups["version"].Value,
-                ChangeList = match.Groups["cl"].Value,
-                Config = match.Groups["config"].Value,
-                BuildTime = match.Groups["buildtime"].Value,
-                OriginalFileName = nameOnly,
-                OriginalFileNameWithoutExt = nameWithoutExt
-            };
+                var psi = new ProcessStartInfo
+                {
+                    FileName = exePath,
+                    Arguments = args,
+                    WorkingDirectory = Path.GetDirectoryName(exePath) ?? unpackDir,
+                    UseShellExecute = false
+                };
+
+                Process.Start(psi);
+                _log("[INFO] 게임 실행 명령을 호출했습니다.");
+            }
+            catch (Exception ex)
+            {
+                _log("[ERROR] 게임 실행 중 오류가 발생했습니다.");
+                _log(ex.Message);
+            }
         }
 
-        private string BuildDownloadUrl(BuildInfo build)
+        private static (string Version, int CL, DateTime? Timestamp) ParseBuildInfoFromFileName(string fileName)
         {
-            // http://.../GameBuilds/0.0.1/WIN/GW_v0.0.1_CL2229_Shipping_20251201220028.zip
-            return $"{BaseUrl}/{build.Version}/{Platform}/{build.OriginalFileName}";
+            if (string.IsNullOrWhiteSpace(fileName))
+                return (string.Empty, 0, null);
+
+            // 예: GW_v0.0.1_CL2301_Shipping_20251205123010.zip
+            var pattern = @"^GW_v(?<ver>\d+\.\d+\.\d+)_CL(?<cl>\d+)_.*_(?<ts>\d{14})\.zip$";
+            var m = Regex.Match(fileName, pattern, RegexOptions.IgnoreCase);
+            if (!m.Success)
+                return (string.Empty, 0, null);
+
+            string ver = m.Groups["ver"].Value;
+            int cl = int.TryParse(m.Groups["cl"].Value, out var clVal) ? clVal : 0;
+
+            string ts = m.Groups["ts"].Value; // yyyyMMddHHmmss
+            if (DateTime.TryParseExact(ts, "yyyyMMddHHmmss", null,
+                    System.Globalization.DateTimeStyles.None, out var dt))
+            {
+                return (ver, cl, dt);
+            }
+
+            return (ver, cl, null);
         }
 
-        private async Task DownloadFileAsync(string url, string destinationPath)
+        private static string? FindExecutable(string rootDir)
         {
-            using var httpClient = new HttpClient();
+            if (!Directory.Exists(rootDir))
+                return null;
 
-            using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
+            // 1순위: GW.exe
+            var gwExe = Directory.GetFiles(rootDir, "GW.exe", SearchOption.AllDirectories);
+            if (gwExe.Length > 0)
+                return gwExe[0];
 
-            await using var contentStream = await response.Content.ReadAsStreamAsync();
-            await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-            await contentStream.CopyToAsync(fileStream);
-        }
-
-        /// <summary>
-        /// 실행할 EXE를 찾는다.
-        /// 1순위: GW*.exe
-        /// 2순위: 아무 *.exe 첫 번째
-        /// </summary>
-        private string? FindGameExe(string rootDir)
-        {
-            var gwExe = FindFirstExe(rootDir, "GW*.exe");
-            if (gwExe != null) return gwExe;
-
-            var allExe = Directory.GetFiles(rootDir, "*.exe", SearchOption.AllDirectories);
-            if (allExe.Length > 0)
-                return allExe[0];
+            // 2순위: 첫 번째 exe
+            var exes = Directory.GetFiles(rootDir, "*.exe", SearchOption.AllDirectories);
+            if (exes.Length > 0)
+                return exes[0];
 
             return null;
-        }
-
-        private string? FindFirstExe(string rootDir, string pattern)
-        {
-            var files = Directory.GetFiles(rootDir, pattern, SearchOption.AllDirectories);
-            return files.Length > 0 ? files[0] : null;
         }
     }
 }
