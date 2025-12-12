@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
@@ -7,6 +7,7 @@ using MessageBox = System.Windows.MessageBox;
 using System.Collections.Generic;
 using System.Windows.Controls;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace BravoGameLauncherGui
 {
@@ -15,13 +16,18 @@ namespace BravoGameLauncherGui
         private readonly AppSettings _settings;
         private readonly GameBuildLauncher _launcher;
 
-        // 서버에서 받은 빌드 전체 목록 (파일명 + Config)
-        private List<ServerBuildItem> _serverBuilds = new();
+        // 서버에서 받은 전체 빌드 목록
+        private List<ServerBuildItem> _allBuilds = new();
 
         private class ServerBuildItem
         {
-            public string FileName { get; set; } = string.Empty;
-            public string Config   { get; set; } = string.Empty;
+            public string FileName  { get; set; } = string.Empty;
+            public string Config    { get; set; } = string.Empty;
+            public string Version   { get; set; } = string.Empty;
+            public int    CL        { get; set; }
+            public string BuildDate { get; set; } = string.Empty; // yyyy-MM-dd
+            public string BuildTime { get; set; } = string.Empty; // HH:mm:ss
+            public DateTime SortKey { get; set; }                 // 내림차순 정렬용
         }
 
         public MainWindow()
@@ -41,94 +47,84 @@ namespace BravoGameLauncherGui
             AppendLog(string.Empty);
 
             // 빌드 타입 변경 시 목록 갱신
-            if (CmbBuildType != null)
-                CmbBuildType.SelectionChanged += CmbBuildType_SelectionChanged;
-
-            // 초기에는 목록 비워두기
-            RefreshComboItems();
+            CmbBuildType.SelectionChanged += (_, __) => RefreshBuildListUI();
 
             // 창이 로드되면 자동으로 서버 목록 새로고침
             Loaded += async (_, __) => await RefreshFromServerAsync();
         }
 
-        /// <summary>
-        /// ComboBox에 서버 빌드 리스트를 바인딩 (빌드 타입 필터 포함)
-        /// </summary>
-        private void RefreshComboItems()
+        // ================================
+        // 빌드 리스트 UI 갱신
+        // ================================
+        private void RefreshBuildListUI()
         {
-            // 서버에서 아직 아무 것도 못 받아온 경우
-            if (_serverBuilds == null || _serverBuilds.Count == 0)
+            if (_allBuilds == null || _allBuilds.Count == 0)
             {
-                CmbFileName.ItemsSource = null;
-                CmbFileName.Text = string.Empty;
+                LvBuilds.ItemsSource = null;
                 return;
             }
 
-            // 선택된 빌드 타입 (기본값: Development)
-            string selectedType = "Development";
+            string selectedType = GetSelectedBuildType();
 
-            if (CmbBuildType?.SelectedItem is ComboBoxItem cbi &&
-                cbi.Content is string content &&
-                !string.IsNullOrWhiteSpace(content))
-            {
-                selectedType = content;
-            }
-
-            // 선택한 타입만 필터링
-            var items = _serverBuilds
-                .Where(b => string.Equals(
-                    b.Config,
-                    selectedType,
-                    StringComparison.OrdinalIgnoreCase))
-                .Select(b => b.FileName)
+            var filtered = _allBuilds
+                .Where(b => string.Equals(b.Config, selectedType, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(b => b.SortKey)
                 .ToList();
 
-            // 선택한 타입의 빌드가 하나도 없는 경우
-            if (items.Count == 0)
+            if (filtered.Count == 0)
             {
-                CmbFileName.ItemsSource = null;
-                CmbFileName.Text        = string.Empty;
-
+                LvBuilds.ItemsSource = null;
                 AppendLog($"[WARN] 서버 빌드 리스트 중 '{selectedType}' 타입 빌드가 없습니다.");
                 return;
             }
 
-            // 콤보박스에 목록 반영
-            CmbFileName.ItemsSource = items;
+            LvBuilds.ItemsSource = filtered;
 
-            // 기본 선택은 최신 하나
-            CmbFileName.Text = items[0];
+            // 기본 선택: 첫 번째 항목
+            LvBuilds.SelectedIndex = 0;
 
-            AppendLog($"[INFO] '{selectedType}' 타입 빌드 {items.Count}개 표시.");
+            AppendLog($"[INFO] '{selectedType}' 타입 빌드 {filtered.Count}개 표시.");
         }
 
-        private void CmbBuildType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private string GetSelectedBuildType()
         {
-            RefreshComboItems();
+            if (CmbBuildType?.SelectedItem is ComboBoxItem cbi &&
+                cbi.Content is string content &&
+                !string.IsNullOrWhiteSpace(content))
+            {
+                return content;
+            }
+
+            return "Development";
         }
 
-        /// <summary>
-        /// 실행 버튼 클릭: ZIP 파일명 기준으로 빌드 실행
-        /// </summary>
+        // ================================
+        // 실행 버튼
+        // ================================
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
             BtnRun.IsEnabled = false;
 
             try
             {
-                string fileName = (CmbFileName.Text ?? string.Empty).Trim();
-                if (string.IsNullOrWhiteSpace(fileName))
+                if (LvBuilds.ItemsSource == null)
                 {
-                    AppendLog("[WARN] 파일명을 입력하세요.");
+                    AppendLog("[WARN] 실행할 빌드가 없습니다. 서버 목록을 먼저 새로고침하세요.");
                     return;
                 }
 
-                // 최근 목록 업데이트 & 저장
+                if (LvBuilds.SelectedItem is not ServerBuildItem selected)
+                {
+                    AppendLog("[WARN] 실행할 빌드를 체크하세요.");
+                    return;
+                }
+
+                string fileName = selected.FileName;
+
+                // 기존처럼 최근 목록에 추가 (AppSettings 기능 유지)
                 _settings.AddRecentFileName(fileName);
                 _settings.Save();
-                RefreshComboItems();
 
-                // 실제 실행 로직 호출
                 await _launcher.RunAsync(fileName);
             }
             catch (Exception ex)
@@ -174,7 +170,6 @@ namespace BravoGameLauncherGui
             if (string.IsNullOrWhiteSpace(newPath))
                 return;
 
-            // 설정 및 런처에 반영
             _settings.RootDownloadDir = newPath;
             _settings.Save();
 
@@ -219,6 +214,9 @@ namespace BravoGameLauncherGui
             Close();
         }
 
+        // ================================
+        // 서버 목록 새로고침
+        // ================================
         private async void BtnRefreshFromServer_Click(object sender, RoutedEventArgs e)
         {
             await RefreshFromServerAsync();
@@ -226,8 +224,6 @@ namespace BravoGameLauncherGui
 
         private async Task RefreshFromServerAsync()
         {
-            // 버튼에서 호출될 수도 있고, Loaded에서 자동 호출될 수도 있으니
-            // 버튼이 null일 가능성도 고려해서 null 체크
             if (BtnRefreshFromServer != null)
                 BtnRefreshFromServer.IsEnabled = false;
 
@@ -239,12 +235,12 @@ namespace BravoGameLauncherGui
                 if (result == null || result.Builds == null || result.Builds.Count == 0)
                 {
                     AppendLog("[WARN] 서버에서 가져온 빌드 정보가 없습니다.");
-                    _serverBuilds.Clear();
-                    RefreshComboItems();
+                    _allBuilds.Clear();
+                    RefreshBuildListUI();
                     return;
                 }
 
-                // buildTime 기준으로 내림차순 정렬
+                // buildTime 기준으로 내림차순 정렬 (서버 기준 정렬)
                 result.Builds.Sort((a, b) =>
                 {
                     var ta = a.BuildTime ?? DateTime.MinValue;
@@ -252,26 +248,31 @@ namespace BravoGameLauncherGui
                     return tb.CompareTo(ta);
                 });
 
-                // 서버 전체 빌드 목록 저장 (파일명 + Config)
-                _serverBuilds = new List<ServerBuildItem>();
+                _allBuilds = new List<ServerBuildItem>();
 
                 foreach (var item in result.Builds)
                 {
                     if (string.IsNullOrWhiteSpace(item.FileName))
                         continue;
 
-                    // 파일명에서 Config(Development/Shipping) 파싱
-                    var config = GetBuildConfigFromFileName(item.FileName);
+                    var parse = ParseBuildInfoFromFileName(item.FileName);
 
-                    _serverBuilds.Add(new ServerBuildItem
+                    var dt = item.BuildTime ?? parse.Timestamp ?? DateTime.MinValue;
+
+                    _allBuilds.Add(new ServerBuildItem
                     {
-                        FileName = item.FileName,
-                        Config   = config
+                        FileName  = item.FileName,
+                        Config    = GetBuildConfigFromFileName(item.FileName),
+                        Version   = parse.Version ?? string.Empty,
+                        CL        = parse.CL,
+                        BuildDate = dt == DateTime.MinValue ? "" : dt.ToString("yyyy-MM-dd"),
+                        BuildTime = dt == DateTime.MinValue ? "" : dt.ToString("HH:mm:ss"),
+                        SortKey   = dt
                     });
                 }
 
-                AppendLog($"[INFO] 서버 빌드 리스트 {_serverBuilds.Count}개 로드 완료.");
-                RefreshComboItems();
+                AppendLog($"[INFO] 서버 빌드 리스트 {_allBuilds.Count}개 로드 완료.");
+                RefreshBuildListUI();
             }
             catch (Exception ex)
             {
@@ -285,12 +286,38 @@ namespace BravoGameLauncherGui
             }
         }
 
+        // ================================
+        // 파일명 파싱 유틸
+        // ================================
+        private static (string Version, int CL, DateTime? Timestamp) ParseBuildInfoFromFileName(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return (string.Empty, 0, null);
+
+            // 예: GW_v0.0.1_CL2301_Shipping_20251205123010.zip
+            var pattern = @"^GW_v(?<ver>\d+\.\d+\.\d+)_CL(?<cl>\d+)_.*_(?<ts>\d{14})\.zip$";
+            var m = Regex.Match(fileName, pattern, RegexOptions.IgnoreCase);
+            if (!m.Success)
+                return (string.Empty, 0, null);
+
+            string ver = m.Groups["ver"].Value;
+            int cl = int.TryParse(m.Groups["cl"].Value, out var clVal) ? clVal : 0;
+
+            string ts = m.Groups["ts"].Value; // yyyyMMddHHmmss
+            if (DateTime.TryParseExact(ts, "yyyyMMddHHmmss", null,
+                    System.Globalization.DateTimeStyles.None, out var dt))
+            {
+                return (ver, cl, dt);
+            }
+
+            return (ver, cl, null);
+        }
+
         private static string GetBuildConfigFromFileName(string fileName)
         {
             if (string.IsNullOrWhiteSpace(fileName))
                 return "Unknown";
 
-            // 예: GW_v0.0.1_CL2301_Shipping_20251205123010.zip
             if (fileName.IndexOf("_Shipping_", StringComparison.OrdinalIgnoreCase) >= 0)
                 return "Shipping";
 
