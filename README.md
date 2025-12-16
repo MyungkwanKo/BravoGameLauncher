@@ -190,4 +190,4 @@ BravoGameLauncherGui/bin/Release/net8.0-windows/win-x64/publish/BravoGameLaunche
 
 # 📄 라이선스
 
-내부 전용 – 외부 배포 금지
+내부 전용 – 외부 배포 금지 
