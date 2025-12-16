@@ -15,84 +15,108 @@
             <!-- 캐시 경로 -->
             <RowDefinition Height="Auto" />
             <!-- 빌드 리스트 -->
-            <RowDefinition Height="2*" />
-            <!-- 로그 -->
             <RowDefinition Height="*" />
+            <!-- 로그 창 -->
+            <RowDefinition Height="2*" />
         </Grid.RowDefinitions>
 
-        <!-- 상단 메뉴 -->
+        <!-- 메뉴 -->
         <Menu Grid.Row="0">
-            <MenuItem Header="옵션(_O)">
+            <MenuItem Header="_파일">
                 <MenuItem Header="캐시 경로 변경..." Click="MenuChangeCachePath_Click" />
-                <MenuItem Header="캐시 전체 삭제..." Click="MenuClearCache_Click" />
+                <MenuItem Header="캐시 삭제" Click="MenuClearCache_Click" />
                 <Separator />
-                <MenuItem Header="종료(_X)" Click="MenuExit_Click" />
+                <MenuItem Header="종료" Click="MenuExit_Click" />
+            </MenuItem>
+            <MenuItem Header="_서버">
+                <MenuItem Header="빌드 목록 새로고침" Click="BtnRefreshFromServer_Click" />
             </MenuItem>
         </Menu>
 
-        <!-- 빌드 타입 + 빌드목록 새로고침 + 실행 + 창모드 + Local/Server -->
-        <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="10,8,10,4">
-            <!-- 빌드 타입 -->
-            <TextBlock Text="빌드 타입:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox x:Name="CmbBuildType"
-                      Width="130"
-                      SelectedIndex="0"
-                      VerticalAlignment="Center">
-                <ComboBoxItem Content="Development" />
-                <ComboBoxItem Content="Shipping" />
-            </ComboBox>
+        <!-- 빌드 타입 + 버튼 + DS 다운로드 -->
+        <Grid Grid.Row="1" Margin="10,8,10,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />  <!-- 왼쪽: 기존 컨트롤 -->
+                <ColumnDefinition Width="*" />     <!-- 가운데 여백 -->
+                <ColumnDefinition Width="Auto" />  <!-- 오른쪽: DS 다운로드 -->
+            </Grid.ColumnDefinitions>
 
-            <TextBlock Width="20" />
+            <!-- [좌측] 빌드 타입 / 새로고침 / 실행 / 창모드 / Local / Server -->
+            <StackPanel Orientation="Horizontal" Grid.Column="0">
+                <!-- 빌드 타입 -->
+                <TextBlock Text="빌드 타입:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox x:Name="CmbBuildType"
+                          Width="130"
+                          SelectedIndex="0"
+                          VerticalAlignment="Center">
+                    <ComboBoxItem Content="Development" />
+                    <ComboBoxItem Content="Shipping" />
+                </ComboBox>
 
-            <!-- 빌드 목록 새로고침 -->
-            <Button x:Name="BtnRefreshFromServer"
-                    Content="빌드목록 새로고침"
-                    Width="140"
-                    Margin="0,0,8,0"
-                    Click="BtnRefreshFromServer_Click" />
+                <TextBlock Width="20" />
 
-            <!-- 실행 -->
-            <Button x:Name="BtnRun"
-                    Content="실행"
-                    Width="80"
-                    Margin="0,0,8,0"
-                    Click="BtnRun_Click" />
+                <!-- 빌드 목록 새로고침 -->
+                <Button x:Name="BtnRefreshFromServer"
+                        Content="빌드목록 새로고침"
+                        Width="140"
+                        Margin="0,0,8,0"
+                        Click="BtnRefreshFromServer_Click" />
 
-            <!-- 창모드 체크 -->
-            <CheckBox x:Name="CbWindowed"
-                      Content="창모드"
-                      VerticalAlignment="Center"
-                      Margin="0,0,8,0" />
+                <!-- 실행 -->
+                <Button x:Name="BtnRun"
+                        Content="실행"
+                        Width="80"
+                        Margin="0,0,8,0"
+                        Click="BtnRun_Click" />
 
-            <!-- 구분선 -->
-            <TextBlock Text="│"
+                <!-- 창모드 체크 -->
+                <CheckBox x:Name="CbWindowed"
+                          Content="창모드"
+                          VerticalAlignment="Center"
+                          Margin="0,0,8,0" />
+
+                <!-- 구분선 -->
+                <TextBlock Text="│"
+                           VerticalAlignment="Center"
+                           Margin="4,0,4,0" />
+
+                <!-- Local / Server 선택 -->
+                <CheckBox x:Name="CbLocal"
+                          Content="Local"
+                          VerticalAlignment="Center"
+                          Margin="0,0,4,0"
+                          Click="CbLocal_Click" />
+                <CheckBox x:Name="CbServer"
+                          Content="Server"
+                          VerticalAlignment="Center"
+                          Click="CbServer_Click" />
+            </StackPanel>
+
+            <!-- [우측] Dedicated Server 테스트용 다운로드 버튼 -->
+            <Button x:Name="BtnDownloadDsSample"
+                    Grid.Column="2"
+                    Content="DS 다운로드"
+                    Width="110"
+                    HorizontalAlignment="Right"
+                    Click="BtnDownloadDsSample_Click" />
+        </Grid>
+
+
+        <!-- 캐시 경로 -->
+        <DockPanel Grid.Row="2" Margin="10,0,10,5">
+            <TextBlock Text="캐시 경로:"
                        VerticalAlignment="Center"
-                       Margin="4,0,4,0" />
+                       Margin="0,0,5,0" />
+            <TextBox x:Name="TxtCachePath"
+                     IsReadOnly="True"
+                     VerticalAlignment="Center"
+                     Margin="0,0,5,0" />
+        </DockPanel>
 
-            <!-- Local / Server 선택 (서버 선택 영역) -->
-            <CheckBox x:Name="CbLocal"
-                      Content="Local"
-                      VerticalAlignment="Center"
-                      Margin="0,0,4,0"
-                      Click="CbLocal_Click" />
-            <CheckBox x:Name="CbServer"
-                      Content="Server"
-                      VerticalAlignment="Center"
-                      Click="CbServer_Click" />
-        </StackPanel>
-
-        <!-- 캐시 경로 표시 -->
-        <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="10,0,10,4">
-            <TextBlock Text="로컬 캐시 경로:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBlock x:Name="TxtCachePath"
-                       VerticalAlignment="Center"
-                       TextWrapping="Wrap" />
-        </StackPanel>
-
-        <!-- 빌드 리스트 (체크박스 + 버전/CL/빌드일자/빌드시간) -->
+        <!-- 빌드 리스트 (체크박스 + 버전/CL/Config/Date/Time) -->
         <ListView x:Name="LvBuilds"
                   Grid.Row="3"
-                  Margin="10,0,10,4"
+                  Margin="10,0,10,5"
                   SelectionMode="Single">
             <ListView.View>
                 <GridView>
@@ -109,9 +133,9 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
 
-                    <!-- 버전 -->
-                    <GridViewColumn Header="버전"
-                                    Width="110"
+                    <!-- Version -->
+                    <GridViewColumn Header="Version"
+                                    Width="100"
                                     DisplayMemberBinding="{Binding Version}" />
 
                     <!-- CL -->
@@ -119,18 +143,24 @@
                                     Width="80"
                                     DisplayMemberBinding="{Binding CL}" />
 
-                    <!-- 빌드일자 -->
-                    <GridViewColumn Header="빌드일자"
+                    <!-- Config -->
+                    <GridViewColumn Header="Config"
+                                    Width="100"
+                                    DisplayMemberBinding="{Binding Config}" />
+
+                    <!-- Date -->
+                    <GridViewColumn Header="Date"
                                     Width="120"
                                     DisplayMemberBinding="{Binding BuildDate}" />
 
-                    <!-- 빌드시간 -->
-                    <GridViewColumn Header="빌드시간"
+                    <!-- Time -->
+                    <GridViewColumn Header="Time"
                                     Width="100"
                                     DisplayMemberBinding="{Binding BuildTime}" />
                 </GridView>
             </ListView.View>
         </ListView>
+
 
         <!-- 로그 창 -->
         <TextBox x:Name="TxtLog"
