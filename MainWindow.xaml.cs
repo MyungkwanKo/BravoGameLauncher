@@ -26,8 +26,9 @@ namespace BravoGameLauncherGui
             public string BuildDate { get; set; } = string.Empty; // yyyy-MM-dd
             public string BuildTime { get; set; } = string.Empty; // HH:mm:ss
             public DateTime SortKey { get; set; }                 // 내림차순 정렬용
-
             public string Platform  { get; set; } = string.Empty; // WIN / DS / ...
+            public int JenkinsNumber { get; set; }
+
         }
 
         private List<ServerBuildItem> _allBuilds = new();
@@ -44,7 +45,8 @@ namespace BravoGameLauncherGui
 
             // UI 초기화
             TxtCachePath.Text = _launcher.RootDownloadDir;
-            AppendLog("=== GW Launcher (GUI) ===");
+            AppendLog($"=== {LauncherVersionInfo.WindowTitle} ===");
+            AppendLog($"현재 런처 버전: {LauncherVersionInfo.VersionForServer}");
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
             AppendLog(string.Empty);
 
@@ -119,6 +121,7 @@ namespace BravoGameLauncherGui
                             : item.Config,
                         Version   = parse.Version ?? string.Empty,
                         CL        = parse.CL,
+                        JenkinsNumber = item.JenkinsBuildNumber,
                         BuildDate = dt == DateTime.MinValue ? "" : dt.ToString("yyyy-MM-dd"),
                         BuildTime = dt == DateTime.MinValue ? "" : dt.ToString("HH:mm:ss"),
                         SortKey   = dt,

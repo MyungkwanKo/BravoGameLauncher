@@ -1,7 +1,8 @@
 ﻿<Window x:Class="BravoGameLauncherGui.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="GW Launcher"
+        xmlns:local="clr-namespace:BravoGameLauncherGui"
+        Title="{x:Static local:LauncherVersionInfo.WindowTitle}"
         Height="450"
         Width="900"
         WindowStartupLocation="CenterScreen">
@@ -133,27 +134,21 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
 
-                    <!-- Version -->
+                    <GridViewColumn Header="BuildNo."
+                                    Width="80"
+                                    DisplayMemberBinding="{Binding JenkinsNumber}" />
                     <GridViewColumn Header="Version"
                                     Width="100"
                                     DisplayMemberBinding="{Binding Version}" />
-
-                    <!-- CL -->
                     <GridViewColumn Header="CL"
                                     Width="80"
                                     DisplayMemberBinding="{Binding CL}" />
-
-                    <!-- Config -->
                     <GridViewColumn Header="Config"
                                     Width="100"
                                     DisplayMemberBinding="{Binding Config}" />
-
-                    <!-- Date -->
                     <GridViewColumn Header="Date"
                                     Width="120"
                                     DisplayMemberBinding="{Binding BuildDate}" />
-
-                    <!-- Time -->
                     <GridViewColumn Header="Time"
                                     Width="100"
                                     DisplayMemberBinding="{Binding BuildTime}" />
