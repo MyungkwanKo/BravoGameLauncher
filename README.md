@@ -1,125 +1,175 @@
-# Bravo Game Launcher (GUI)
-
-게임 빌드 작업자를 위한 Windows GUI 런처입니다.  
-Jenkins에서 생성된 최신 게임 빌드를 **자동 다운로드 → 압축해제 → 실행**할 수 있으며,  
-서버에서 제공되는 **최신 10개 빌드 목록을 리스트 형태로 확인하고 실행할 빌드를 선택**할 수 있습니다.
-
----
-
-# ✨ 주요 기능
-
-## ✔ 최신 빌드 목록 자동 로드 + UI 개선
-런처 실행 시 서버에서 `builds.json`을 자동 로딩하여 최신 빌드 목록을 리스트로 표시합니다.
-
-기존 드롭다운 방식에서 개선되어 다음과 같은 UI로 표시됩니다:
-
-**컬럼 구성**
-- **버전**
-- **CL (Changelist)**
-- **빌드일자**
-- **빌드시간**
-- 좌측 체크박스로 실행할 빌드를 선택  
-  → **단일 선택만 가능**
+# # GW Launcher & Run_GWLauncher (Bootstrap Updater)
+#readme #GWLauncher
+통합 프로젝트 구조 및 동작 방식 정리 문서  
+(런처 + 런처 스타터)
 
 ---
 
-## ✔ 서버 목록 수동 새로고침 지원
-“서버 새로고침“ 버튼을 눌러 최신 빌드 정보를 즉시 다시 가져올 수 있습니다.
+# 📁 1. 전체 프로젝트 구조
 
----
-
-## ✔ 자동 다운로드 / 압축해제 / 실행
-선택된 빌드 하나만 다운로드 및 실행합니다.
-
-- 이미 다운로드된 zip 파일은 재다운로드하지 않음  
-- 이미 압축해제된 빌드는 바로 exe 실행  
-- exe 자동 탐색 후 실행
-
----
-
-## ✔ 캐시 기능
-캐싱 경로 예시는 다음과 같습니다:
+현재 GW Launcher 솔루션에는 **런처(GWLauncher)** 와 **런처 스타터(Run_GWLauncher)** 두 구성 요소가 함께 관리됩니다.
 
 ```
-C:\ProgramData\BravoGameBuilds\
-    └── {version}\
-        └── {buildName}\
-            ├── build.zip
-            └── unpacked\
+/Launcher Project Root
+│
+├─ BravoGameLauncherGui/          ← GW 런처(WPF)
+│     ├─ MainWindow.xaml
+│     ├─ MainWindow.xaml.cs
+│     ├─ GameBuildLauncher.cs
+│     ├─ BuildListService.cs
+│     ├─ AppSettings.cs
+│     ├─ LauncherVersionInfo.cs
+│     └─ ... (런처 관련 전체 스크립트)
+│
+└─ Run_GWLauncher/                ← 런처 스타터(콘솔)
+      ├─ Program.cs
+      ├─ LauncherState.cs
+      ├─ LauncherRemoteInfo.cs
+      └─ (기타 부트스트랩 관련 파일)
 ```
 
 ---
 
-## ✔ 캐시 경로 변경 / 전체 삭제
-메뉴에서 다음 기능을 제공합니다:
-
-- **캐시 경로 변경**
-- **캐시 전체 삭제**
+# 📌 2. 구성 요소 설명
 
 ---
 
-## ✔ Jenkins 연동 (자동 JSON 빌드 목록 생성)
-서버의 `builds.json` 파일은 Jenkins가 자동 생성합니다.
+## 🔹 2-1. **GWLauncher (BravoGameLauncherGui) — 런처 본체**
 
-특징:
+### 역할
+- Jenkins 빌드 서버에서 게임 빌드 ZIP 목록 로드  
+- 로컬 캐시에 ZIP 다운로드 / 압축 해제 / 실행  
+- 빌드 타입 필터링(Development/Shipping)  
+- 실행 옵션(Local / Server / Windowed)  
+- Jenkins 빌드 번호 포함한 빌드 목록 표시  
+- **서버 패치 기반 업데이트를 대비한 정수 버전 구조 포함 (`LauncherVersionInfo.Version`)**
 
-- Jenkins 빌드 성공 시 ZIP 파일명을 env에 저장  
-- post success 단계에서 JSON에 **이번 빌드만 추가**  
-- JSON은 최신 10개만 유지  
-- **Development / Shipping** 방식 모두 지원  
+### 구성 파일 및 기능
+
+#### ✔ MainWindow.xaml / MainWindow.xaml.cs
+- UI 및 전체 런처 동작 관리  
+- 빌드 리스트 표시 / 체크박스 선택  
+- 실제 게임 빌드 실행 버튼 처리  
+- DS 테스트 다운로드 기능 포함  
+- ServerBuildItem(빌드 표시 모델) 관리
+
+#### ✔ GameBuildLauncher.cs
+- ZIP 다운로드  
+- 캐시 구조 관리  
+- 압축 해제  
+- 실행 파일(GW.exe) 검색  
+- 실행 인자 구성 및 프로세스 실행
+
+#### ✔ BuildListService.cs
+- 서버 `/GameBuilds/builds.json` 다운로드  
+- JSON → 빌드 리스트로 변환  
+- Jenkins 빌드 번호(`jenkinsBuildNumber`) 포함
+
+#### ✔ AppSettings.cs
+- 캐시 경로 저장  
+- 최근 실행한 ZIP 기록 저장
+
+#### ✔ LauncherVersionInfo.cs
+- 런처 버전 정보 (정수 기반 버전: v1, v2, v3...)  
+- 서버 패치 업데이트 시 버전 비교 용도  
+- Window Title에 표시할 버전 정보 제공
 
 ---
 
-# 🧩 builds.json 구조
+## 🔹 2-2. **Run_GWLauncher — 런처 스타터(부트스트랩)**
+
+### 역할
+사용자가 Run_GWLauncher.exe만 실행하면:
+
+1. 서버의 `launcher.json` 확인  
+2. 최신 버전 여부 판단  
+3. 필요 시 런처 ZIP 다운로드  
+4. `%LOCALAPPDATA%/GWLauncher/Launcher/v{N}/` 에 설치  
+5. 최신 GWLauncher.exe 실행  
+6. 종료
+
+즉, **런처 자동 업데이트 + 설치 + 실행 관리자**
+
+### 구성 파일 및 기능
+
+#### ✔ Program.cs
+- Run_GWLauncher 전체 흐름  
+- launcher_state.json 로드  
+- 서버 launcher.json 다운로드  
+- 최신 버전 판단  
+- 업데이트 수행  
+- GWLauncher.exe 실행
+
+#### ✔ LauncherState.cs
+- 로컬 상태 저장 모델  
+- JSON 저장 위치:
+```
+%LOCALAPPDATA%/GWLauncher/launcher_state.json
+```
+
+필드:
+| 필드 | 설명 |
+|------|------|
+| installedVersion | 설치된 런처 버전 |
+| installedPath | 설치된 GWLauncher.exe 경로 |
+| lastCheckedAt | 마지막 체크 시각 |
+
+#### ✔ LauncherRemoteInfo.cs
+- 서버 launcher.json 구조 매핑
+
+launcher.json 구성 예:
 
 ```json
 {
-  "project": "GW",
-  "builds": [
-    {
-      "fileName": "GW_v0.0.1_CL2301_Shipping_20251205123010.zip",
-      "version": "0.0.1",
-      "cl": 2301,
-      "config": "Shipping",
-      "platform": "WIN",
-      "buildTime": "2025-12-05T12:30:10",
-      "jenkinsBuildNumber": 57
-    }
-  ]
+  "latestVersion": 2,
+  "minSupportedVersion": 1,
+  "package": {
+    "fileName": "GWLauncher_v2.zip",
+    "downloadUrl": "http://.../Launcher/GWLauncher_v2.zip"
+  },
+  "releaseNotes": "버그 수정 및 기능 안정화"
 }
 ```
 
 ---
 
-# 🖥 GUI 구성 (최신 버전)
+# 🧠 3. 런처와 런처 스타터의 동작 관계
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│ 옵션: 캐시 경로 변경 / 캐시 전체삭제 / 종료              │
-├──────────────────────────────────────────────────────────┤
-│ 빌드 타입: [Development ▼] [실행] [서버 새로고침]        │
-├──────────────────────────────────────────────────────────┤
-│ 캐시 경로: C:\ProgramData\BravoGameBuilds                │
-├──────────────────────────────────────────────────────────┤
-│  ✓ | 버전   |  CL   | 빌드일자     | 빌드시간            │
-│ ---+--------+-------+--------------+----------------------│
-│    | 0.0.1  | 2301  | 2025-12-05   | 12:30:10             │
-│    | ...                                            │
-├──────────────────────────────────────────────────────────┤
-│ [로그 창]                                                │
-└──────────────────────────────────────────────────────────┘
+사용자 실행
+       ↓
+[ Run_GWLauncher.exe ]
+       │
+       ├─ launcher_state.json 읽기
+       ├─ 서버 launcher.json 읽기
+       ├─ 버전 비교
+       ├─ 최신 GWLauncher_v{N}.zip 설치
+       └─ GWLauncher.exe 실행
+                 ↓
+          [ BravoGameLauncherGui ]
 ```
+
+### ✔ 역할 구분 요약
+
+| Run_GWLauncher (Starter) | GWLauncher (Launcher) |
+|---------------------------|------------------------|
+| 업데이트 체크 | 게임 빌드 UI 표시 |
+| ZIP 다운로드 및 설치 | 빌드 ZIP 다운로드 |
+| 최신 런처 실행 | 게임 실행 기능 |
+| 자체 UI 없음 | UI 기반 런처 |
 
 ---
 
-# 🔧 빌드 방법 (.NET 8 기준)
+# 🛠 4. 빌드 방법 (dotnet CLI)
 
-## 1) 일반 빌드
-```bash
-dotnet build -c Release
-```
+런처 & 런처 스타터 모두 Visual Studio 없이 **dotnet CLI만으로 빌드 가능**.
 
-## 2) 단일 EXE 생성 (배포용)
+---
+
+## ✔ 4-1. 런처(GWLauncher) 빌드
+
+BravoGameLauncherGui.csproj 위치에서:
+
 ```bash
 dotnet publish -c Release -r win-x64 ^
   -p:PublishSingleFile=true ^
@@ -128,66 +178,81 @@ dotnet publish -c Release -r win-x64 ^
   --self-contained false
 ```
 
-실행 파일 위치:
+출력 위치:
 
 ```
-BravoGameLauncherGui/bin/Release/net8.0-windows/win-x64/publish/BravoGameLauncherGui.exe
+BravoGameLauncherGui/bin/Release/net8.0-windows/win-x64/publish/GWLauncher.exe
 ```
 
----
-
-# 🔁 런처 전체 동작 흐름
-
-### 1) 런처 실행
-- 서버에서 최신 빌드 목록 자동 로딩  
-- Development / Shipping 선택에 따라 필터링  
-- 리스트에 빌드 항목 표시  
-- 하나만 체크 가능
-
-### 2) 실행 버튼 클릭
-- 체크한 빌드만 다운로드 및 실행
-
-### 3) Jenkins 빌드 성공 시
-- ZIP 파일명 자동 추출  
-- builds.json 자동 갱신  
-- 런처에서 자동 반영
-
----
-
-# 🧱 프로젝트 구조
-
+ZIP 패키징 시:
 ```
-📁 BravoGameLauncherGui
- ├── MainWindow.xaml
- ├── MainWindow.xaml.cs
- ├── GameBuildLauncher.cs
- ├── BuildListService.cs
- ├── AppSettings.cs
- ├── BravoGameLauncherGui.csproj
- └── README.md
+GWLauncher_v1.zip
+GWLauncher_v2.zip
 ```
 
 ---
 
-# 🧪 테스트 체크리스트
+## ✔ 4-2. 런처 스타터(Run_GWLauncher) 빌드
 
-### 런처 기능
-- [ ] 서버 JSON 자동 로딩  
-- [ ] Development / Shipping 필터 정상 작동  
-- [ ] 체크박스는 항상 단일 선택  
-- [ ] 선택한 빌드만 실행  
-- [ ] 캐시 경로 변경 가능  
-- [ ] 캐시 전체 삭제 가능  
-- [ ] 로그 정상 출력  
+Run_GWLauncher.csproj 위치에서 실행:
 
-### Jenkins 기능
-- [ ] JSON 생성 성공  
-- [ ] 최신 10개 유지  
-- [ ] ZIP 빌드명 정확히 반영  
-- [ ] 웹서버에서 builds.json 정상 서빙  
+```bash
+dotnet publish -c Release -r win-x64 ^
+  -p:PublishSingleFile=true ^
+  -p:IncludeNativeLibrariesForSelfExtract=true ^
+  -p:DebugType=None ^
+  --self-contained false
+```
+
+출력 위치:
+
+```
+Run_GWLauncher/bin/Release/net8.0/win-x64/Run_GWLauncher.exe
+```
 
 ---
 
-# 📄 라이선스
+# 📡 5. 서버 패치 구조 요약
 
-내부 전용 – 외부 배포 금지 
+서버 디렉터리 `/Launcher/`:
+
+```
+Launcher/
+  ├─ launcher.json
+  ├─ GWLauncher_v1.zip
+  ├─ GWLauncher_v2.zip
+  ├─ GWLauncher_v3.zip
+  └─ ...
+```
+
+### launcher.json 예시
+
+```json
+{
+  "latestVersion": 2,
+  "minSupportedVersion": 1,
+  "package": {
+    "fileName": "GWLauncher_v2.zip",
+    "downloadUrl": "http://server/Launcher/GWLauncher_v2.zip"
+  },
+  "releaseNotes": "DS 테스트 다운로드 기능 추가"
+}
+```
+
+Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
+
+---
+
+# ✔ 6. 요약
+
+| 구성 요소 | 목적 |
+|-----------|--------|
+| **Run_GWLauncher.exe** | 런처 자동 업데이트 + 설치 + 실행 |
+| **launcher_state.json** | 로컬 설치 버전 관리 |
+| **launcher.json** | 서버 최신 버전 정보 |
+| **GWLauncher.exe** | 실제 게임 빌드 실행 기능 담당 |
+| **BravoGameLauncherGui** | UI 기반 게임 실행 런처 |
+
+---
+
+필요하면 이 문서에 Jenkins 자동 배포 매뉴얼도 추가해줄 수 있어.
