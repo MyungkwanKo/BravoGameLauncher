@@ -121,19 +121,40 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
-                string ipAddress = (CbServer.IsChecked == true) ? "100.66.7.43" : "localhost";
+                bool isServer = (CbServer.IsChecked == true);
+                string ipAddress = isServer ? "100.66.7.43" : "localhost";
                 bool useWindowed = CbWindowed.IsChecked == true;
 
-                string fileName = selected.FileName;
+                string clientZip = selected.FileName;
 
-                _settings.AddRecentFileName(fileName);
+                _settings.AddRecentFileName(clientZip);
                 _settings.Save();
 
-                await _launcher.RunAsync(fileName, ipAddress, useWindowed);
+                // 1️⃣ Server 실행: 기존대로 Client만 실행
+                if (isServer)
+                {
+                    await _launcher.RunAsync(clientZip, ipAddress, useWindowed);
+                    return;
+                }
+
+                // 2️⃣ Local 실행
+                if (selected.DS == "O")
+                {
+                    string baseName = Path.GetFileNameWithoutExtension(clientZip);
+                    string dsZip = baseName + "_DS.zip";
+
+                    // ✅ 병렬 준비 + DS 먼저 실행 + Client 실행 (한 방에)
+                    await _launcher.RunLocalWithDedicatedServerAsync(clientZip, dsZip, ipAddress, useWindowed);
+                }
+                else
+                {
+                    // DS 없으면 Client만 실행
+                    await _launcher.RunAsync(clientZip, ipAddress, useWindowed);
+                }
             }
             catch (Exception ex)
             {
-                AppendLog("[ERROR] 예외가 발생했습니다.");
+                AppendLog("[ERROR] 실행 중 예외 발생");
                 AppendLog(ex.Message);
             }
             finally
@@ -141,6 +162,7 @@ namespace BravoGameLauncherGui
                 BtnRun.IsEnabled = true;
             }
         }
+
 
         private void AppendLog(string message)
         {

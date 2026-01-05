@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Globalization;
+using System.Linq;
 
 namespace BravoGameLauncherGui
 {
@@ -274,18 +275,15 @@ namespace BravoGameLauncherGui
             return (ver, cl, null);
         }
 
-        // 실행 파일 탐색
-        // 1순위: GW.exe
-        // 2순위: 첫 번째 exe
-        private static string? FindExecutable(string rootDir)
+        private static string? FindExecutable(string rootDir, string preferredExeName)
         {
             if (!Directory.Exists(rootDir))
                 return null;
 
-            // 1순위: GW.exe
-            var gwExe = Directory.GetFiles(rootDir, "GW.exe", SearchOption.AllDirectories);
-            if (gwExe.Length > 0)
-                return gwExe[0];
+            // 1순위: preferred exe
+            var preferred = Directory.GetFiles(rootDir, preferredExeName, SearchOption.AllDirectories);
+            if (preferred.Length > 0)
+                return preferred[0];
 
             // 2순위: 첫 번째 exe
             var exes = Directory.GetFiles(rootDir, "*.exe", SearchOption.AllDirectories);
@@ -295,6 +293,14 @@ namespace BravoGameLauncherGui
             return null;
         }
 
+        // 기존 호환용 오버로드 (RunAsync에서 사용)
+        private static string? FindExecutable(string rootDir)
+        {
+            // 클라이언트 기본 우선순위: GW.exe
+            return FindExecutable(rootDir, "GW.exe");
+        }
+
+
         public void ChangeRootDownloadDir(string newRootDownloadDir)
         {
             if (string.IsNullOrWhiteSpace(newRootDownloadDir))
@@ -303,5 +309,245 @@ namespace BravoGameLauncherGui
             RootDownloadDir = newRootDownloadDir;
             Directory.CreateDirectory(RootDownloadDir);
         }
+
+        public async Task RunDedicatedServerAsync(string dsZipFileName)
+        {
+            if (string.IsNullOrWhiteSpace(dsZipFileName))
+            {
+                _log("[ERROR] DS ZIP 파일명이 비어 있습니다.");
+                return;
+            }
+
+            var (version, _, _) = ParseBuildInfoFromFileName(dsZipFileName);
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                _log("[ERROR] DS 파일명에서 버전 정보를 파싱하지 못했습니다.");
+                return;
+            }
+
+            string buildName = Path.GetFileNameWithoutExtension(dsZipFileName);
+            string downloadUrl = $"{BuildServerBaseUrl}/{version}/DS/{dsZipFileName}";
+
+            _log("[INFO] Dedicated Server 실행 준비");
+            _log($"       Version : {version}");
+            _log($"       File    : {dsZipFileName}");
+            _log($"       URL     : {downloadUrl}");
+
+            // 캐시 구조 동일
+            string versionDir = Path.Combine(RootDownloadDir, version);
+            string buildDir   = Path.Combine(versionDir, buildName);
+            string zipPath    = Path.Combine(buildDir, "build.zip");
+            string unpackDir  = Path.Combine(buildDir, "unpacked");
+
+            Directory.CreateDirectory(buildDir);
+
+            // 1️⃣ ZIP 다운로드
+            if (!File.Exists(zipPath))
+            {
+                _log("[INFO] DS ZIP 다운로드 시작...");
+
+                using var response = await HttpClient.GetAsync(downloadUrl);
+                response.EnsureSuccessStatusCode();
+
+                await using var fs = File.Create(zipPath);
+                await response.Content.CopyToAsync(fs);
+
+                _log("[INFO] DS ZIP 다운로드 완료.");
+            }
+            else
+            {
+                _log("[INFO] 캐시된 DS ZIP 파일 사용.");
+            }
+
+            // 2️⃣ 압축 해제
+            if (Directory.Exists(unpackDir))
+            {
+                _log("[INFO] 기존 DS unpacked 폴더 삭제.");
+                Directory.Delete(unpackDir, recursive: true);
+            }
+
+            _log("[INFO] DS ZIP 압축 해제 중...");
+            ZipFile.ExtractToDirectory(zipPath, unpackDir);
+            _log("[INFO] DS 압축 해제 완료.");
+
+            // 3️⃣ GWServer.exe 탐색
+            var serverExe = Directory.GetFiles(unpackDir, "GWServer.exe", SearchOption.AllDirectories)
+                                    .FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(serverExe))
+            {
+                _log("[ERROR] GWServer.exe 를 찾지 못했습니다.");
+                return;
+            }
+
+            // 4️⃣ 고정 실행 커맨드
+            string args = "/GWBattleRoyale/Maps/L_BR_Proto -log -port=7777";
+
+            _log($"[INFO] DS 실행: {serverExe} {args}");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName         = serverExe,
+                Arguments        = args,
+                WorkingDirectory = Path.GetDirectoryName(serverExe)!,
+                UseShellExecute  = false
+            };
+
+            Process.Start(psi);
+        }
+
+        private async Task<string> DownloadAndExtractAsync(string zipFileName, string platform)
+        {
+            if (string.IsNullOrWhiteSpace(zipFileName))
+                throw new ArgumentException("zip 파일명이 비어 있습니다.", nameof(zipFileName));
+
+            if (string.IsNullOrWhiteSpace(platform))
+                platform = "WIN";
+
+            var (version, _, _) = ParseBuildInfoFromFileName(zipFileName);
+            if (string.IsNullOrWhiteSpace(version))
+                throw new InvalidOperationException($"파일명에서 버전 정보를 파싱하지 못했습니다: {zipFileName}");
+
+            string buildName = Path.GetFileNameWithoutExtension(zipFileName);
+            string downloadUrl = $"{BuildServerBaseUrl}/{version}/{platform}/{zipFileName}";
+
+            // 캐시 구조: {Root}/{version}/{buildName}/build.zip + unpacked/
+            string versionDir = Path.Combine(RootDownloadDir, version);
+            string buildDir   = Path.Combine(versionDir, buildName);
+            string zipPath    = Path.Combine(buildDir, "build.zip");
+            string unpackDir  = Path.Combine(buildDir, "unpacked");
+
+            Directory.CreateDirectory(buildDir);
+
+            // ZIP 다운로드
+            if (!File.Exists(zipPath))
+            {
+                _log($"[INFO] ({platform}) ZIP 다운로드 시작...");
+                _log($"       URL: {downloadUrl}");
+
+                using var response = await HttpClient.GetAsync(downloadUrl);
+                response.EnsureSuccessStatusCode();
+
+                await using var fs = File.Create(zipPath);
+                await response.Content.CopyToAsync(fs);
+
+                _log($"[INFO] ({platform}) ZIP 다운로드 완료.");
+            }
+            else
+            {
+                _log($"[INFO] ({platform}) 캐시된 ZIP 파일 사용.");
+            }
+
+            // 압축 해제 (항상 새로)
+            if (Directory.Exists(unpackDir))
+            {
+                _log($"[INFO] ({platform}) 기존 unpacked 폴더 삭제.");
+                Directory.Delete(unpackDir, recursive: true);
+            }
+
+            _log($"[INFO] ({platform}) ZIP 압축 해제 중...");
+            ZipFile.ExtractToDirectory(zipPath, unpackDir);
+            _log($"[INFO] ({platform}) 압축 해제 완료.");
+
+            return unpackDir;
+        }
+
+        private void KillRunningDedicatedServer()
+        {
+            try
+            {
+                var procs = Process.GetProcessesByName("GWServer");
+                if (procs.Length == 0)
+                    return;
+
+                _log($"[INFO] 기존 DS 프로세스 {procs.Length}개 감지 → 종료 시도");
+
+                foreach (var p in procs)
+                {
+                    try
+                    {
+                        _log($"       Kill PID={p.Id}");
+                        p.Kill(entireProcessTree: true);
+                        p.WaitForExit(3000);
+                    }
+                    catch (Exception ex)
+                    {
+                        _log($"[WARN] DS 프로세스 종료 실패(PID={p.Id}): {ex.Message}");
+                    }
+                }
+
+                _log("[INFO] 기존 DS 프로세스 종료 처리 완료.");
+            }
+            catch (Exception ex)
+            {
+                _log("[WARN] DS 프로세스 탐색/종료 중 예외: " + ex.Message);
+            }
+        }
+
+        public async Task RunLocalWithDedicatedServerAsync(
+            string clientZipFileName,
+            string dsZipFileName,
+            string ipAddress,
+            bool useWindowed)
+        {
+            // ✅ 0) DS가 실행 중이면 먼저 종료 (압축해제/삭제 전에!)
+            KillRunningDedicatedServer();
+
+            // 1) Client(WIN) + DS(DS) 다운로드/압축해제 병렬
+            _log("[INFO] Local 실행: Client/DS 준비 병렬 시작");
+
+            var clientTask = DownloadAndExtractAsync(clientZipFileName, "WIN");
+            var dsTask     = DownloadAndExtractAsync(dsZipFileName, "DS");
+
+            await Task.WhenAll(clientTask, dsTask);
+
+            string clientUnpackDir = clientTask.Result;
+            string dsUnpackDir     = dsTask.Result;
+
+            // 2) 실행 파일 탐색
+            string? dsExePath = FindExecutable(dsUnpackDir, "GWServer.exe");
+            if (string.IsNullOrWhiteSpace(dsExePath) || !File.Exists(dsExePath))
+            {
+                _log("[ERROR] DS 실행 파일(GWServer.exe)을 찾지 못했습니다.");
+                return;
+            }
+
+            string? clientExePath = FindExecutable(clientUnpackDir, "GW.exe");
+            if (string.IsNullOrWhiteSpace(clientExePath) || !File.Exists(clientExePath))
+            {
+                _log("[ERROR] Client 실행 파일(GW.exe)을 찾지 못했습니다.");
+                return;
+            }
+
+            // 3) DS 실행 (커맨드 고정)
+            string dsArgs = "/GWBattleRoyale/Maps/L_BR_Proto -log -port=7777";
+            _log($"[INFO] DS 실행: {dsExePath} {dsArgs}");
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName         = dsExePath,
+                Arguments        = dsArgs,
+                WorkingDirectory = Path.GetDirectoryName(dsExePath) ?? dsUnpackDir,
+                UseShellExecute  = false
+            });
+
+            // 4) Client 실행 (DS 실행 후)
+            string address = $"{ipAddress}:7777";
+            string clientArgs = $"{address} -log";
+            if (useWindowed)
+                clientArgs += " -windowed -ResX=1920 -ResY=1080";
+
+            _log($"[INFO] Client 실행: {clientExePath} {clientArgs}");
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName         = clientExePath,
+                Arguments        = clientArgs,
+                WorkingDirectory = Path.GetDirectoryName(clientExePath) ?? clientUnpackDir,
+                UseShellExecute  = false
+            });
+        }
+
+
     }
 }

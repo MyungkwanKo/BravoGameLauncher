@@ -1,7 +1,35 @@
-# # GW Launcher & Run_GWLauncher (Bootstrap Updater)
+# GW Launcher & Run_GWLauncher (Bootstrap Updater)
 #readme #GWLauncher
 통합 프로젝트 구조 및 동작 방식 정리 문서  
 (런처 + 런처 스타터)
+
+---
+
+# 🆕 v2 변경 사항 요약 (릴리즈 노트)
+
+GW Launcher v2에서 반영된 핵심 변경 사항입니다.
+
+## ✅ 빌드 목록 개선
+- Jenkins `builds.json`의 플랫폼 구조(`WIN`/`DS`)를 기준으로 빌드 목록을 표시합니다.
+- 클라이언트 빌드(WIN) 항목에 대해 **동일 파일명 + `_DS`** 규칙으로 DS 존재 여부를 계산하여 **DS 컬럼에 `O/X`로 표기**합니다.
+  - 예: `GW_v0.0.1_CL2443_Development_20251227112732.zip`
+  - DS : `GW_v0.0.1_CL2443_Development_20251227112732_DS.zip`
+
+## ✅ Local 실행 시 DS 자동 처리 (요구사항 2 + 3)
+- **Local 실행**: DS가 존재(O)하면 **DS와 클라이언트를 함께 다운로드/압축해제**하고 실행합니다.
+  - 다운로드/압축해제는 **병렬 진행**(순서 무관)
+  - 실행 순서는 **DS 먼저 → 클라이언트 실행**
+  - DS가 이미 실행 중이면 **기존 DS 프로세스(GWServer.exe) 종료 후 재실행**
+- **Server 실행**: 클라이언트만 실행하며 DS는 다운로드/실행하지 않습니다.
+
+### DS 실행 커맨드 (고정)
+아래 커맨드로 DS가 실행됩니다. (변경 금지)
+```
+GWServer.exe /GWBattleRoyale/Maps/L_BR_Proto -log -port=7777
+```
+
+## ✅ DS 다운로드 버튼 정책
+- v2부터 DS는 Local 실행 시 자동 처리되므로, 별도의 DS 다운로드 버튼/핸들러에 의존하지 않습니다.
 
 ---
 
@@ -50,7 +78,7 @@
 - UI 및 전체 런처 동작 관리  
 - 빌드 리스트 표시 / 체크박스 선택  
 - 실제 게임 빌드 실행 버튼 처리  
-- DS 테스트 다운로드 기능 포함  
+- DS는 Local 실행 시 자동 처리(다운로드/압축해제/실행)  
 - ServerBuildItem(빌드 표시 모델) 관리
 
 #### ✔ GameBuildLauncher.cs
@@ -127,7 +155,7 @@ launcher.json 구성 예:
     "fileName": "GWLauncher_v2.zip",
     "downloadUrl": "http://.../Launcher/GWLauncher_v2.zip"
   },
-  "releaseNotes": "버그 수정 및 기능 안정화"
+  "releaseNotes": "v2: DS 표기 및 Local DS 자동 실행/안정화"
 }
 ```
 
@@ -180,8 +208,11 @@ dotnet publish -c Release -r win-x64 ^
 
 출력 위치:
 
+> 현재 프로젝트 TFM 예: `net10.0-windows` (환경에 따라 달라질 수 있음)
+
+
 ```
-BravoGameLauncherGui/bin/Release/net8.0-windows/win-x64/publish/GWLauncher.exe
+BravoGameLauncherGui/bin/Release/<TFM>/win-x64/publish/GWLauncher.exe
 ```
 
 ZIP 패키징 시:
@@ -206,8 +237,11 @@ dotnet publish -c Release -r win-x64 ^
 
 출력 위치:
 
+> 현재 프로젝트 TFM 예: `net10.0-windows` (환경에 따라 달라질 수 있음)
+
+
 ```
-Run_GWLauncher/bin/Release/net8.0/win-x64/Run_GWLauncher.exe
+Run_GWLauncher/bin/Release/<TFM>/win-x64/publish/Run_GWLauncher.exe
 ```
 
 ---
@@ -235,7 +269,7 @@ Launcher/
     "fileName": "GWLauncher_v2.zip",
     "downloadUrl": "http://server/Launcher/GWLauncher_v2.zip"
   },
-  "releaseNotes": "DS 테스트 다운로드 기능 추가"
+  "releaseNotes": "v2: DS 표기 및 Local DS 자동 실행/안정화"
 }
 ```
 
