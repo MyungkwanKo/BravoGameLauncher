@@ -18,7 +18,7 @@ namespace BravoGameLauncherGui
         private const string BuildServerBaseUrl =
             "http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds";
 
-        public string RootDownloadDir { get; }
+        public string RootDownloadDir { get; private set; }
 
         public GameBuildLauncher(Action<string> log, string rootDownloadDir)
         {
@@ -293,6 +293,15 @@ namespace BravoGameLauncherGui
                 return exes[0];
 
             return null;
+        }
+
+        public void ChangeRootDownloadDir(string newRootDownloadDir)
+        {
+            if (string.IsNullOrWhiteSpace(newRootDownloadDir))
+                return;
+
+            RootDownloadDir = newRootDownloadDir;
+            Directory.CreateDirectory(RootDownloadDir);
         }
     }
 }

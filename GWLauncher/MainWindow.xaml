@@ -92,14 +92,6 @@
                           VerticalAlignment="Center"
                           Click="CbServer_Click" />
             </StackPanel>
-
-            <!-- [우측] Dedicated Server 테스트용 다운로드 버튼 -->
-            <Button x:Name="BtnDownloadDsSample"
-                    Grid.Column="2"
-                    Content="DS 다운로드"
-                    Width="110"
-                    HorizontalAlignment="Right"
-                    Click="BtnDownloadDsSample_Click" />
         </Grid>
 
 
@@ -136,7 +128,7 @@
 
                     <GridViewColumn Header="BuildNo."
                                     Width="80"
-                                    DisplayMemberBinding="{Binding JenkinsNumber}" />
+                                    DisplayMemberBinding="{Binding BuildNo}" />
                     <GridViewColumn Header="Version"
                                     Width="100"
                                     DisplayMemberBinding="{Binding Version}" />
@@ -152,6 +144,9 @@
                     <GridViewColumn Header="Time"
                                     Width="100"
                                     DisplayMemberBinding="{Binding BuildTime}" />
+                    <GridViewColumn Header="DS"
+                                    Width="50"
+                                    DisplayMemberBinding="{Binding DS}" />
                 </GridView>
             </ListView.View>
         </ListView>
