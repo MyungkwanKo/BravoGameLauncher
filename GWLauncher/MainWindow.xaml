@@ -75,22 +75,6 @@
                           Content="창모드"
                           VerticalAlignment="Center"
                           Margin="0,0,8,0" />
-
-                <!-- 구분선 -->
-                <TextBlock Text="│"
-                           VerticalAlignment="Center"
-                           Margin="4,0,4,0" />
-
-                <!-- Local / Server 선택 -->
-                <CheckBox x:Name="CbLocal"
-                          Content="Local"
-                          VerticalAlignment="Center"
-                          Margin="0,0,4,0"
-                          Click="CbLocal_Click" />
-                <CheckBox x:Name="CbServer"
-                          Content="Server"
-                          VerticalAlignment="Center"
-                          Click="CbServer_Click" />
             </StackPanel>
         </Grid>
 

@@ -39,11 +39,11 @@ namespace BravoGameLauncherGui
         }
 
         // 기존 호출과 호환용: 기본 플랫폼은 WIN
-        public Task RunAsync(string zipFileName, string ipAddress, bool useWindowed)
-            => RunAsync(zipFileName, "WIN", ipAddress, useWindowed);
+        public Task RunAsync(string zipFileName, bool useWindowed)
+            => RunAsync(zipFileName, "WIN", useWindowed);
 
         // 플랫폼까지 명시하는 버전
-        public async Task RunAsync(string zipFileName, string platform, string ipAddress, bool useWindowed)
+        public async Task RunAsync(string zipFileName, string platform, bool useWindowed)
         {
             if (string.IsNullOrWhiteSpace(zipFileName))
                 throw new ArgumentException("zip 파일명이 비어 있습니다.", nameof(zipFileName));
@@ -110,9 +110,8 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            // 실행 인자 구성: GW.exe {IP}:7777 -log [windowed 옵션]
-            string address = $"{ipAddress}:7777";
-            string args    = $"{address} -log";
+            // ✅ Local 실행에서도 address 인자 제거: -log (+ windowed 옵션)만 전달
+            string args = "-log";
 
             if (useWindowed)
             {
@@ -487,7 +486,6 @@ namespace BravoGameLauncherGui
         public async Task RunLocalWithDedicatedServerAsync(
             string clientZipFileName,
             string dsZipFileName,
-            string ipAddress,
             bool useWindowed)
         {
             // ✅ 0) DS가 실행 중이면 먼저 종료 (압축해제/삭제 전에!)
@@ -532,8 +530,7 @@ namespace BravoGameLauncherGui
             });
 
             // 4) Client 실행 (DS 실행 후)
-            string address = $"{ipAddress}:7777";
-            string clientArgs = $"{address} -log";
+            string clientArgs = "-log";
             if (useWindowed)
                 clientArgs += " -windowed -ResX=1920 -ResY=1080";
 

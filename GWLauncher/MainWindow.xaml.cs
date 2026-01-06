@@ -46,9 +46,6 @@ namespace BravoGameLauncherGui
 
             CmbBuildType.SelectionChanged += (_, __) => RefreshBuildListUI();
 
-            CbLocal.IsChecked = true;
-            CbServer.IsChecked = false;
-
             Loaded += async (_, __) => await RefreshFromServerAsync();
         }
 
@@ -91,18 +88,6 @@ namespace BravoGameLauncherGui
             return "Development";
         }
 
-        private void CbLocal_Click(object sender, RoutedEventArgs e)
-        {
-            if (CbLocal.IsChecked == true) CbServer.IsChecked = false;
-            else if (CbServer.IsChecked != true) CbLocal.IsChecked = true;
-        }
-
-        private void CbServer_Click(object sender, RoutedEventArgs e)
-        {
-            if (CbServer.IsChecked == true) CbLocal.IsChecked = false;
-            else if (CbLocal.IsChecked != true) CbServer.IsChecked = true;
-        }
-
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
             BtnRun.IsEnabled = false;
@@ -121,21 +106,11 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
-                bool isServer = (CbServer.IsChecked == true);
-                string ipAddress = isServer ? "100.66.7.43" : "localhost";
                 bool useWindowed = CbWindowed.IsChecked == true;
-
                 string clientZip = selected.FileName;
 
                 _settings.AddRecentFileName(clientZip);
                 _settings.Save();
-
-                // 1️⃣ Server 실행: 기존대로 Client만 실행
-                if (isServer)
-                {
-                    await _launcher.RunAsync(clientZip, ipAddress, useWindowed);
-                    return;
-                }
 
                 // 2️⃣ Local 실행
                 if (selected.DS == "O")
@@ -144,12 +119,12 @@ namespace BravoGameLauncherGui
                     string dsZip = baseName + "_DS.zip";
 
                     // ✅ 병렬 준비 + DS 먼저 실행 + Client 실행 (한 방에)
-                    await _launcher.RunLocalWithDedicatedServerAsync(clientZip, dsZip, ipAddress, useWindowed);
+                    await _launcher.RunLocalWithDedicatedServerAsync(clientZip, dsZip, useWindowed);
                 }
                 else
                 {
                     // DS 없으면 Client만 실행
-                    await _launcher.RunAsync(clientZip, ipAddress, useWindowed);
+                    await _launcher.RunAsync(clientZip, useWindowed);
                 }
             }
             catch (Exception ex)
