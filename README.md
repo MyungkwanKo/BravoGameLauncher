@@ -5,6 +5,140 @@
 
 ---
 
+## 🆕 v3 변경 사항 요약
+
+### ✅ 통합 런처 구조 도입
+- 개별 배치 실행 방식 제거
+- 하나의 **GWLauncher(v3)** 에서 모든 작업 수행
+
+### ✅ 탭 기반 기능 분리
+GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
+
+| 탭 | 기능 |
+|----|----|
+| Setup_p4 | Perforce 환경 변수 설정 |
+| p4_sync | Jenkins 빌드 기준 Perforce 동기화 |
+| GWEditor | Installed Build Unreal Editor 실행 |
+| GameStarter | 기존 v2 게임/DS 실행 기능 |
+
+### ✅ 용어 재정의
+| 명칭 | 의미 |
+|----|----|
+| **GWLauncher** | v3 통합 런처 (메인 프로그램) |
+| **GameStarter** | v2까지의 기존 런처 기능 |
+| **Run_GWLauncher** | 런처 스타터(부트스트랩 실행기) |
+
+---
+
+## 📁 1. 전체 프로젝트 구조
+
+```
+/Launcher Project Root
+│
+├─ BravoGameLauncherGui/          ← GWLauncher v3 (통합 런처)
+│     ├─ MainWindow.xaml
+│     ├─ MainWindow.xaml.cs
+│     ├─ GameBuildLauncher.cs
+│     ├─ BuildListService.cs
+│     ├─ AppSettings.cs
+│     ├─ LauncherVersionInfo.cs
+│     └─ (통합 런처 관련 전체 스크립트)
+│
+└─ Run_GWLauncher/                ← 런처 스타터
+      ├─ Program.cs
+      ├─ LauncherState.cs
+      ├─ LauncherRemoteInfo.cs
+      └─ (업데이트/실행 전용 코드)
+```
+
+---
+
+## 📌 2. GWLauncher(v3) 기능 구성
+
+### 🔸 Setup_p4 탭
+- Perforce 환경 변수 설정 (1회성)
+- Workspace(P4CLIENT) 사용자 직접 입력
+- `p4 set` 결과 + `p4 info` 전체 로그 출력
+
+### 🔸 p4_sync 탭
+- Workspace / Client Root 자동 표시
+- Jenkins 빌드 기준 CL 탐색 (#JenkinsBuild)
+- Jenkins 기준 CL로 p4 sync 수행
+- Sync 전 GUI 확인 후 실행
+
+### 🔸 GWEditor 탭
+- Client Root 기준 Unreal Editor 실행
+- 실행 파일:
+  - Engine\Binaries\Win64\UnrealEditor.exe
+  - GW\GW.uproject
+- 탭 진입 시 자동 정보 갱신
+
+### 🔸 GameStarter 탭
+- v2까지의 기존 게임 실행 기능 유지
+- Jenkins builds.json 기반 빌드 목록
+- Local 실행 시 DS 자동 처리
+
+---
+
+## 📌 3. Run_GWLauncher (런처 스타터)
+
+### 역할
+- 서버 launcher.json 기반 최신 런처 확인
+- 최신 GWLauncher 다운로드 및 실행
+
+### 특징
+- Perforce에 올라가는 유일한 실행 파일
+- 업데이트 빈도 매우 낮음
+
+---
+
+## 🧠 4. 실행 흐름
+
+```
+Run_GWLauncher.exe
+      ↓
+GWLauncher.exe 실행
+      ↓
+[Setup_p4 | p4_sync | GWEditor | GameStarter]
+```
+
+---
+
+## 🛠 5. 빌드 방법
+
+### ✔ GWLauncher 빌드
+```
+dotnet publish -c Release -r win-x64 ^
+  -p:PublishSingleFile=true ^
+  -p:IncludeNativeLibrariesForSelfExtract=true ^
+  -p:DebugType=None ^
+  --self-contained false
+```
+
+### ✔ Run_GWLauncher 빌드
+```
+dotnet publish -c Release -r win-x64 ^
+  -p:PublishSingleFile=true ^
+  -p:IncludeNativeLibrariesForSelfExtract=true ^
+  -p:DebugType=None ^
+  --self-contained false
+```
+
+---
+
+## ✔ 6. 요약
+
+| 구성 요소 | 역할 |
+|----|----|
+| GWLauncher | 통합 개발 런처 |
+| GameStarter | 게임/DS 실행 |
+| Run_GWLauncher | 런처 스타터 |
+| Setup_p4 | Perforce 초기 설정 |
+| p4_sync | Jenkins 기준 동기화 |
+| GWEditor | Unreal Editor 실행 |
+
+
+---
 # 🆕 v2 변경 사항 요약 (릴리즈 노트)
 
 GW Launcher v2에서 반영된 핵심 변경 사항입니다.

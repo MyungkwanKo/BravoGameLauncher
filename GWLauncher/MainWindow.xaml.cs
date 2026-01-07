@@ -475,7 +475,10 @@ namespace BravoGameLauncherGui
             });
         }
 
-        private async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessCaptureAsync(string fileName, string arguments)
+        private async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessCaptureAsync(
+            string fileName,
+            string arguments,
+            string? workingDirectory = null)
         {
             try
             {
@@ -483,10 +486,13 @@ namespace BravoGameLauncherGui
                 {
                     FileName = fileName,
                     Arguments = arguments,
+                    WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8,
                 };
 
                 using var proc = new Process { StartInfo = psi };
@@ -502,11 +508,17 @@ namespace BravoGameLauncherGui
             catch (Exception ex)
             {
                 // (정책 3번) 실행 자체가 불가한 치명 오류만 팝업 + 로그
-                AppendGWEditorLog("[FATAL] p4 실행 실패: " + ex.Message);
-                MessageBox.Show($"p4 실행 실패\n\n{ex.Message}", "실행 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppendP4SyncLog("[FATAL] 프로세스 실행 실패: " + ex.Message);
+                MessageBox.Show(
+                    $"프로세스 실행 실패\n\n{fileName} {arguments}\n\n{ex.Message}",
+                    "실행 오류",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
                 return (-1, "", ex.ToString());
             }
         }
+
 
         private async Task RefreshGWEditorP4InfoAsync()
         {
@@ -606,20 +618,52 @@ namespace BravoGameLauncherGui
 
         private async void MainTab_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // SelectionChanged는 탭 내부 컨트롤에서도 버블링될 수 있어 TabControl에서 발생한 것만 처리
+            // 탭 내부 컨트롤에서도 버블링될 수 있어 TabControl에서 발생한 것만 처리
             if (!ReferenceEquals(e.OriginalSource, sender))
                 return;
 
-            // 선택된 탭이 GWEditor일 때만 자동 갱신
-            if (sender is System.Windows.Controls.TabControl tc && tc.SelectedItem is TabItem tab)
+            if (sender is not System.Windows.Controls.TabControl tc)
+                return;
+
+            if (tc.SelectedItem is not TabItem tab)
+                return;
+
+            string header = tab.Header?.ToString() ?? "";
+
+            if (header == "GWEditor")
             {
-                // Header가 "GWEditor"인 탭을 타겟 (너희 탭명 그대로)
-                if ((tab.Header?.ToString() ?? "") == "GWEditor")
-                {
-                    await AutoRefreshGWEditorAsync();
-                }
+                await AutoRefreshGWEditorAsync();
+                return;
+            }
+
+            if (header == "p4 sync")
+            {
+                await AutoRefreshP4SyncAsync();
+                return;
             }
         }
+
+        private async Task AutoRefreshP4SyncAsync()
+        {
+            if (_p4SyncRefreshing) return;
+            _p4SyncRefreshing = true;
+
+            try
+            {
+                if (BtnP4SyncRefresh != null) BtnP4SyncRefresh.IsEnabled = false;
+                if (BtnP4SyncRun != null) BtnP4SyncRun.IsEnabled = false;
+
+                await RefreshP4SyncInfoAsync();
+
+                if (BtnP4SyncRun != null) BtnP4SyncRun.IsEnabled = true;
+            }
+            finally
+            {
+                if (BtnP4SyncRefresh != null) BtnP4SyncRefresh.IsEnabled = true;
+                _p4SyncRefreshing = false;
+            }
+        }
+
 
         private async Task AutoRefreshGWEditorAsync()
         {
@@ -643,6 +687,268 @@ namespace BravoGameLauncherGui
                 _gwEditorRefreshing = false;
             }
         }
+
+        private bool _p4SyncRefreshing = false;
+
+        private void AppendP4SyncLog(string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                TxtP4SyncLog.AppendText(message + Environment.NewLine);
+                TxtP4SyncLog.ScrollToEnd();
+            });
+        }
+
+        private async Task RefreshP4SyncInfoAsync()
+        {
+            TxtP4SyncLog.Clear();
+            AppendP4SyncLog("=== p4 sync: Workspace/ClientRoot 확인 ===");
+
+            var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", "-ztag info");
+            if (exit != 0)
+            {
+                AppendP4SyncLog($"[WARN] p4 -ztag info 실패 (ExitCode={exit})");
+                if (!string.IsNullOrWhiteSpace(stderr))
+                    AppendP4SyncLog(stderr.Trim());
+
+                TbP4SyncWorkspace.Text = "";
+                TbP4SyncClientRoot.Text = "";
+                TbP4SyncStream.Text = "";
+                return;
+            }
+
+            string ws = "";
+            string root = "";
+            string stream = "";
+
+            foreach (var line in stdout.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (line.StartsWith("... clientName ", StringComparison.OrdinalIgnoreCase))
+                    ws = line.Substring("... clientName ".Length).Trim();
+                else if (line.StartsWith("... clientRoot ", StringComparison.OrdinalIgnoreCase))
+                    root = line.Substring("... clientRoot ".Length).Trim();
+                else if (line.StartsWith("... clientStream ", StringComparison.OrdinalIgnoreCase))
+                    stream = line.Substring("... clientStream ".Length).Trim();
+            }
+
+            TbP4SyncWorkspace.Text = ws;
+            TbP4SyncClientRoot.Text = root;
+            TbP4SyncStream.Text = stream;
+
+            AppendP4SyncLog($"Workspace: {ws}");
+            AppendP4SyncLog($"Client Root: {root}");
+            if (!string.IsNullOrWhiteSpace(stream))
+                AppendP4SyncLog($"Stream: {stream}");
+        }
+
+        private async void BtnP4SyncRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            BtnP4SyncRefresh.IsEnabled = false;
+            try { await RefreshP4SyncInfoAsync(); }
+            finally { BtnP4SyncRefresh.IsEnabled = true; }
+        }
+
+        private static int ParseChangeNumber(string p4ChangesOutput)
+        {
+            // 일반적으로: "Change 12345 on ..."
+            if (string.IsNullOrWhiteSpace(p4ChangesOutput))
+                return -1;
+
+            foreach (var line in p4ChangesOutput.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("Change ", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2 && int.TryParse(parts[1], out int cl))
+                        return cl;
+                }
+            }
+            return -1;
+        }
+
+        private async void BtnP4SyncRun_Click(object sender, RoutedEventArgs e)
+        {
+            BtnP4SyncRun.IsEnabled = false;
+            BtnP4SyncRefresh.IsEnabled = false;
+
+            try
+            {
+                TxtP4SyncLog.Clear();
+
+                string ws = (TbP4SyncWorkspace.Text ?? "").Trim();
+                string root = (TbP4SyncClientRoot.Text ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
+                {
+                    AppendP4SyncLog("[WARN] Workspace/Client Root 정보를 확인할 수 없습니다. [새로고침] 후 다시 시도하세요.");
+                    MessageBox.Show("Workspace/Client Root를 확인할 수 없습니다.\n\n[새로고침] 후 다시 시도하세요.",
+                        "실행 불가", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // 진행 확인(배치의 Y/N 대체) - ScriptDir 비교는 제거(요구사항)
+                var confirm = MessageBox.Show(
+                    $"아래 워크스페이스 기준으로 Sync를 진행합니다.\n\nWorkspace: {ws}\nClient Root: {root}\n\n진행할까요?",
+                    "p4 sync 확인",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.Yes)
+                {
+                    AppendP4SyncLog("[INFO] 사용자가 취소했습니다.");
+                    return;
+                }
+
+                const string TARGET_DEPOT = "//GW/dev/...";
+                const string JENKINS_USER = "gw_build";
+                const string JENKINS_CLIENT = "jenkins-Agent-Win-GW_ProjectBuild";
+                const string TAG = "#JenkinsBuild";
+
+                AppendP4SyncLog("=== p4 sync 시작 ===");
+
+                // [2/6] 로컬 최신 CL
+                AppendP4SyncLog("");
+                AppendP4SyncLog("[2/6] 로컬 최신 changelist 조회 중...");
+
+                var (exitLocal, outLocal, errLocal) = await RunProcessCaptureAsync("p4", $"changes -m1 @{ws}", root);
+                if (exitLocal != 0)
+                {
+                    AppendP4SyncLog($"[WARN] 로컬 최신 CL 조회 실패 (ExitCode={exitLocal}). LOCAL_CL=0 가정");
+                    if (!string.IsNullOrWhiteSpace(errLocal)) AppendP4SyncLog("[ERR] " + errLocal.Trim());
+                }
+
+                int localCL = exitLocal == 0 ? ParseChangeNumber(outLocal) : 0;
+                if (localCL < 0) localCL = 0;
+                AppendP4SyncLog($"- 로컬 최신 CL : {localCL}");
+
+                // [3/6] 서버 최신 CL
+                AppendP4SyncLog("");
+                AppendP4SyncLog("[3/6] 서버 최신 changelist 조회 중...");
+
+                var (exitServer, outServer, errServer) = await RunProcessCaptureAsync("p4", $"changes -m1 {TARGET_DEPOT}", root);
+                if (exitServer != 0)
+                {
+                    AppendP4SyncLog($"[ERROR] 서버 최신 CL 조회 실패 (ExitCode={exitServer})");
+                    if (!string.IsNullOrWhiteSpace(errServer)) AppendP4SyncLog("[ERR] " + errServer.Trim());
+                    return;
+                }
+
+                int serverCL = ParseChangeNumber(outServer);
+                if (serverCL < 0)
+                {
+                    AppendP4SyncLog("[ERROR] 서버 최신 CL 파싱 실패");
+                    return;
+                }
+
+                AppendP4SyncLog($"- 서버 최신 CL : {serverCL}");
+
+                if (localCL >= serverCL)
+                {
+                    AppendP4SyncLog("");
+                    AppendP4SyncLog($"[INFO] 이미 서버 최신 CL({serverCL})까지 동기화되어 있습니다. sync 생략.");
+                    return;
+                }
+
+                AppendP4SyncLog($"[INFO] 서버에 더 최신 변경사항이 있습니다. (LOCAL: {localCL}, SERVER: {serverCL})");
+
+                // [4/6] Jenkins build CL scan
+                AppendP4SyncLog("");
+                AppendP4SyncLog("[4/6] Jenkins build changelist scan (최근 5개 후보)...");
+
+                var (exitCandidates, outCandidates, errCandidates) =
+                    await RunProcessCaptureAsync("p4", $"changes -u {JENKINS_USER} -c {JENKINS_CLIENT} -m5 {TARGET_DEPOT}", root);
+
+                if (exitCandidates != 0)
+                {
+                    AppendP4SyncLog($"[WARN] Jenkins 후보 CL 조회 실패 (ExitCode={exitCandidates})");
+                    if (!string.IsNullOrWhiteSpace(errCandidates)) AppendP4SyncLog("[ERR] " + errCandidates.Trim());
+                    return;
+                }
+
+                var candidateCLs = new List<int>();
+                foreach (var line in outCandidates.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    int cl = ParseChangeNumber(line);
+                    if (cl > 0) candidateCLs.Add(cl);
+                }
+
+                if (candidateCLs.Count == 0)
+                {
+                    AppendP4SyncLog("[WARN] Jenkins 후보 CL이 없습니다. sync 없이 종료합니다.");
+                    return;
+                }
+
+                int targetJenkinsCL = -1;
+
+                foreach (var cl in candidateCLs)
+                {
+                    AppendP4SyncLog($"  [DEBUG] Candidate CL: {cl}");
+
+                    var (exitDesc, outDesc, errDesc) = await RunProcessCaptureAsync("p4", $"describe -s {cl}", root);
+                    if (exitDesc != 0)
+                    {
+                        AppendP4SyncLog($"  [WARN] describe 실패 (CL={cl}, ExitCode={exitDesc})");
+                        if (!string.IsNullOrWhiteSpace(errDesc)) AppendP4SyncLog("  [ERR] " + errDesc.Trim());
+                        continue;
+                    }
+
+                    if (outDesc.IndexOf(TAG, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        AppendP4SyncLog($"  [DEBUG] Jenkins 태그 발견: {TAG} (CL={cl})");
+                        targetJenkinsCL = cl;
+                        break;
+                    }
+                    else
+                    {
+                        AppendP4SyncLog($"  [DEBUG] 태그 없음 (CL={cl})");
+                    }
+                }
+
+                if (targetJenkinsCL <= 0)
+                {
+                    AppendP4SyncLog("");
+                    AppendP4SyncLog($"[WARN] 최근 5개의 Jenkins CL 중에서 태그({TAG})를 찾지 못했습니다. sync 없이 종료합니다.");
+                    return;
+                }
+
+                AppendP4SyncLog("");
+                AppendP4SyncLog($"[INFO] TARGET_JENKINS_CL : {targetJenkinsCL}");
+
+                // [5/6] 비교
+                AppendP4SyncLog("");
+                AppendP4SyncLog("[5/6] 로컬 CL과 Jenkins 빌드 CL 비교 중...");
+
+                if (targetJenkinsCL <= localCL)
+                {
+                    AppendP4SyncLog($"[INFO] 로컬 CL({localCL})이 Jenkins CL({targetJenkinsCL})보다 새롭거나 같아 sync 생략.");
+                    return;
+                }
+
+                AppendP4SyncLog($"[INFO] Jenkins CL({targetJenkinsCL})이 로컬 CL({localCL})보다 최신입니다. sync 진행.");
+
+                // [6/6] Sync
+                AppendP4SyncLog("");
+                AppendP4SyncLog($"[6/6] p4 sync ...@{targetJenkinsCL} 실행");
+
+                int code = await RunProcessAsync("p4", $"sync ...@{targetJenkinsCL}", AppendP4SyncLog, root);
+                if (code != 0)
+                {
+                    AppendP4SyncLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
+                    return;
+                }
+
+                AppendP4SyncLog("");
+                AppendP4SyncLog($"[OK] 워크스페이스가 changelist {targetJenkinsCL} 기준으로 동기화되었습니다.");
+                AppendP4SyncLog("=== p4 sync 완료 ===");
+            }
+            finally
+            {
+                BtnP4SyncRun.IsEnabled = true;
+                BtnP4SyncRefresh.IsEnabled = true;
+            }
+        }
+
 
 
     }
