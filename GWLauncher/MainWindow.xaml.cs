@@ -8,6 +8,8 @@ using System.Collections.Generic;
 using System.Windows.Controls;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
+using System.Text;
 
 namespace BravoGameLauncherGui
 {
@@ -35,6 +37,8 @@ namespace BravoGameLauncherGui
         public MainWindow()
         {
             InitializeComponent();
+
+            TbP4Workspace.Text = new DirectoryInfo(Environment.CurrentDirectory).Name;
 
             _settings = AppSettings.Load();
             _launcher = new GameBuildLauncher(AppendLog, _settings.RootDownloadDir);
@@ -147,6 +151,15 @@ namespace BravoGameLauncherGui
                 TxtLog.ScrollToEnd();
             });
         }
+
+        private void AppendSetupP4Log(string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                TxtSetupP4Log.AppendText(message + Environment.NewLine);
+                TxtSetupP4Log.ScrollToEnd();
+            });
+        }           
 
         private void MenuChangeCachePath_Click(object sender, RoutedEventArgs e)
         {
@@ -341,5 +354,117 @@ namespace BravoGameLauncherGui
 
             return "Unknown";
         }
+
+        private async Task<int> RunProcessAsync(
+            string fileName,
+            string arguments,
+            Action<string> log,
+            string? workingDirectory = null)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8,
+                };
+
+                using var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
+
+                proc.OutputDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) log(e.Data); };
+                proc.ErrorDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) log("[ERR] " + e.Data); };
+
+                if (!proc.Start())
+                    throw new InvalidOperationException("프로세스를 시작할 수 없습니다.");
+
+                proc.BeginOutputReadLine();
+                proc.BeginErrorReadLine();
+
+                await proc.WaitForExitAsync();
+                return proc.ExitCode;
+            }
+            catch (Exception ex)
+            {
+                // (정책 3번) 실행 자체가 불가한 치명 오류 → 팝업 + 로그
+                log("[FATAL] 프로세스 실행 실패: " + ex.Message);
+                MessageBox.Show(
+                    $"프로세스 실행 실패\n\n{fileName} {arguments}\n\n{ex.Message}",
+                    "실행 오류",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                return -1;
+            }
+        }
+
+        private async void BtnSetupP4Apply_Click(object sender, RoutedEventArgs e)
+        {
+            BtnSetupP4Apply.IsEnabled = false;
+
+            try
+            {
+                TxtSetupP4Log.Clear();
+
+                string ws = (TbP4Workspace.Text ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(ws))
+                {
+                    // 입력 누락은 사용자 실수이므로: 로그 + 팝업(친절)
+                    AppendSetupP4Log("[WARN] Workspace 이름을 입력하세요.");
+                    MessageBox.Show("Workspace(P4CLIENT) 이름을 입력하세요.", "입력 필요", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                AppendSetupP4Log("=== setup_p4 시작 ===");
+                AppendSetupP4Log($"Workspace(P4CLIENT): {ws}");
+                AppendSetupP4Log("");
+
+                // 배치와 동일한 설정(값 그대로)
+                // p4 set P4IGNORE=.p4ignore
+                // p4 set P4CHARSET=utf8
+                // p4 set P4PORT=bravo-repo.omnicraftlabs.co.kr:1666
+                // p4 set P4CLIENT=<workspace>
+                // p4 set (확인 출력)
+
+                int code;
+
+                code = await RunProcessAsync("p4", "set P4IGNORE=.p4ignore", AppendSetupP4Log);
+                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+
+                code = await RunProcessAsync("p4", "set P4CHARSET=utf8", AppendSetupP4Log);
+                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+
+                code = await RunProcessAsync("p4", "set P4PORT=bravo-repo.omnicraftlabs.co.kr:1666", AppendSetupP4Log);
+                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+
+                code = await RunProcessAsync("p4", $"set P4CLIENT={ws}", AppendSetupP4Log);
+                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+
+                AppendSetupP4Log("");
+                AppendSetupP4Log("===== Perforce 환경 변수 확인 =====");
+
+                code = await RunProcessAsync("p4", "set", AppendSetupP4Log);
+                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+
+                AppendSetupP4Log("===== P4 Info 확인 =====");
+
+                code = await RunProcessAsync("p4", "info", AppendSetupP4Log);
+                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+
+                AppendSetupP4Log("==================================");
+                AppendSetupP4Log("=== setup_p4 완료 ===");
+            }
+            finally
+            {
+                BtnSetupP4Apply.IsEnabled = true;
+            }
+        }
+   
     }
 }

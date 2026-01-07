@@ -28,35 +28,98 @@
                     SelectedIndex="3"
                     Margin="0">
 
-            <!-- 1) Setup_p4 (GUI만) -->
-            <TabItem Header="Setup_p4">
+            <!-- 1) Setup_p4 -->
+            <TabItem Header="Setup p4">
                 <Grid Margin="10">
-                    <TextBlock Text="(추후 setup_p4.bat 통합 예정)&#x0a;현재는 GUI만 추가한 상태입니다."
-                               TextWrapping="Wrap"
-                               FontSize="14" />
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="Perforce 환경변수 설정 (setup_p4)"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Workspace(P4CLIENT):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="TbP4Workspace"
+                                 Width="260"
+                                 Height="24"
+                                 VerticalContentAlignment="Center"
+                                 Margin="0,0,8,0"/>
+                        <Button x:Name="BtnSetupP4Apply"
+                                Content="적용"
+                                Width="80"
+                                Height="24"
+                                Click="BtnSetupP4Apply_Click"/>
+                    </StackPanel>
+
+                    <!-- 탭별 로그: Setup p4 -->
+                    <TextBox x:Name="TxtSetupP4Log"
+                             Grid.Row="2"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             AcceptsReturn="True"/>
                 </Grid>
             </TabItem>
 
-            <!-- 2) p4_sync (GUI만) -->
-            <TabItem Header="p4_sync">
+            <!-- 2) p4_sync (GUI만 + 탭별 로그 자리 확보) -->
+            <TabItem Header="p4 sync">
                 <Grid Margin="10">
-                    <TextBlock Text="(추후 p4_sync.bat 통합 예정)&#x0a;현재는 GUI만 추가한 상태입니다."
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="(추후 p4_sync 기능 통합 예정)"
                                TextWrapping="Wrap"
-                               FontSize="14" />
+                               FontSize="14"
+                               Margin="0,0,0,8" />
+
+                    <!-- 탭별 로그: p4 sync (향후 연결) -->
+                    <TextBox x:Name="TxtP4SyncLog"
+                             Grid.Row="1"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             AcceptsReturn="True"/>
                 </Grid>
             </TabItem>
 
-            <!-- 3) GWEditor (GUI만) -->
+            <!-- 3) GWEditor (GUI만 + 탭별 로그 자리 확보) -->
             <TabItem Header="GWEditor">
                 <Grid Margin="10">
-                    <TextBlock Text="(추후 Run_GWEditor.bat 통합 예정)&#x0a;현재는 GUI만 추가한 상태입니다."
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="(추후 Run_GWEditor 기능 통합 예정)"
                                TextWrapping="Wrap"
-                               FontSize="14" />
+                               FontSize="14"
+                               Margin="0,0,0,8" />
+
+                    <!-- 탭별 로그: GWEditor (향후 연결) -->
+                    <TextBox x:Name="TxtGWEditorLog"
+                             Grid.Row="1"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             AcceptsReturn="True"/>
                 </Grid>
             </TabItem>
 
-            <!-- 4) GWLauncher (v2 UI 그대로 유지) -->
-            <TabItem Header="GWLauncher">
+            <!-- 4) GameStarter (v2 UI 그대로 유지) -->
+            <TabItem Header="GameStarter">
                 <Grid Margin="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -112,7 +175,7 @@
                         <ListView.View>
                             <GridView>
 
-                                <!-- ✅ v2 방식: 체크박스가 ListViewItem.IsSelected에 바인딩 -->
+                                <!-- v2 방식: 체크박스가 ListViewItem.IsSelected에 바인딩 -->
                                 <GridViewColumn Width="40">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
@@ -150,7 +213,7 @@
                         </ListView.View>
                     </ListView>
 
-                    <!-- 로그 -->
+                    <!-- 로그: GameStarter -->
                     <TextBox x:Name="TxtLog"
                              Grid.Row="3"
                              Margin="10,0,10,10"
