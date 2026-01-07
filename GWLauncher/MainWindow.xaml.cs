@@ -465,6 +465,142 @@ namespace BravoGameLauncherGui
                 BtnSetupP4Apply.IsEnabled = true;
             }
         }
-   
+
+        private void AppendGWEditorLog(string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                TxtGWEditorLog.AppendText(message + Environment.NewLine);
+                TxtGWEditorLog.ScrollToEnd();
+            });
+        }
+
+        private async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessCaptureAsync(string fileName, string arguments)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+
+                using var proc = new Process { StartInfo = psi };
+                if (!proc.Start())
+                    throw new InvalidOperationException("프로세스를 시작할 수 없습니다.");
+
+                string stdout = await proc.StandardOutput.ReadToEndAsync();
+                string stderr = await proc.StandardError.ReadToEndAsync();
+                await proc.WaitForExitAsync();
+
+                return (proc.ExitCode, stdout, stderr);
+            }
+            catch (Exception ex)
+            {
+                // (정책 3번) 실행 자체가 불가한 치명 오류만 팝업 + 로그
+                AppendGWEditorLog("[FATAL] p4 실행 실패: " + ex.Message);
+                MessageBox.Show($"p4 실행 실패\n\n{ex.Message}", "실행 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                return (-1, "", ex.ToString());
+            }
+        }
+
+        private async Task RefreshGWEditorP4InfoAsync()
+        {
+            TxtGWEditorLog.Clear();
+            AppendGWEditorLog("=== GWEditor: Workspace/ClientRoot 확인 ===");
+
+            var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", "-ztag info");
+            if (exit != 0)
+            {
+                AppendGWEditorLog($"[WARN] p4 -ztag info 실패 (ExitCode={exit})");
+                if (!string.IsNullOrWhiteSpace(stderr))
+                    AppendGWEditorLog(stderr.Trim());
+
+                TbGWEditorWorkspace.Text = "";
+                TbGWEditorClientRoot.Text = "";
+                return;
+            }
+
+            string ws = "";
+            string root = "";
+
+            foreach (var line in stdout.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (line.StartsWith("... clientName ", StringComparison.OrdinalIgnoreCase))
+                    ws = line.Substring("... clientName ".Length).Trim();
+                else if (line.StartsWith("... clientRoot ", StringComparison.OrdinalIgnoreCase))
+                    root = line.Substring("... clientRoot ".Length).Trim();
+            }
+
+            TbGWEditorWorkspace.Text = ws;
+            TbGWEditorClientRoot.Text = root;
+
+            AppendGWEditorLog($"Workspace: {ws}");
+            AppendGWEditorLog($"Client Root: {root}");
+        }
+
+        private async void BtnGWEditorRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            BtnGWEditorRefresh.IsEnabled = false;
+            try { await RefreshGWEditorP4InfoAsync(); }
+            finally { BtnGWEditorRefresh.IsEnabled = true; }
+        }
+
+        private void BtnRunGWEditor_Click(object sender, RoutedEventArgs e)
+        {
+            string root = (TbGWEditorClientRoot.Text ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            {
+                AppendGWEditorLog("[WARN] Client Root가 비어있거나 유효하지 않습니다. 새로고침 후 다시 시도하세요.");
+                MessageBox.Show("Client Root를 확인할 수 없습니다.\n\n[새로고침] 후 다시 시도하세요.", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string editorExe = System.IO.Path.Combine(root, "Engine", "Binaries", "Win64", "UnrealEditor.exe");
+            string uproject = System.IO.Path.Combine(root, "GW", "GW.uproject");
+
+            if (!File.Exists(editorExe))
+            {
+                AppendGWEditorLog("[WARN] UnrealEditor.exe를 찾지 못했습니다: " + editorExe);
+                MessageBox.Show($"UnrealEditor.exe를 찾지 못했습니다.\n\n{editorExe}", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (!File.Exists(uproject))
+            {
+                AppendGWEditorLog("[WARN] GW.uproject를 찾지 못했습니다: " + uproject);
+                MessageBox.Show($"GW.uproject를 찾지 못했습니다.\n\n{uproject}", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            string args = $"\"{uproject}\" -nocompile -ddc=noshared";
+
+            AppendGWEditorLog("=== UnrealEditor 실행 ===");
+            AppendGWEditorLog(editorExe);
+            AppendGWEditorLog(args);
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = editorExe,
+                    Arguments = args,
+                    WorkingDirectory = root,
+                    UseShellExecute = true,   // start "" 와 유사하게 별도 프로세스로 런치
+                });
+
+                AppendGWEditorLog("실행 요청 완료.");
+            }
+            catch (Exception ex)
+            {
+                AppendGWEditorLog("[FATAL] 실행 실패: " + ex.Message);
+                MessageBox.Show($"UnrealEditor 실행 실패\n\n{ex.Message}", "실행 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
     }
 }

@@ -93,30 +93,66 @@
                 </Grid>
             </TabItem>
 
-            <!-- 3) GWEditor (GUI만 + 탭별 로그 자리 확보) -->
+            <!-- 3) GWEditor -->
             <TabItem Header="GWEditor">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Text="(추후 Run_GWEditor 기능 통합 예정)"
-                               TextWrapping="Wrap"
-                               FontSize="14"
-                               Margin="0,0,0,8" />
+                    <!-- 상단: WS/Root 표시 + 버튼 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                    <!-- 탭별 로그: GWEditor (향후 연결) -->
+                        <StackPanel Grid.Column="0" Orientation="Vertical" Margin="0,0,10,0">
+                            <TextBlock Text="Workspace(P4CLIENT)" />
+                            <TextBlock Text="Client Root" Margin="0,6,0,0"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Vertical">
+                            <TextBox x:Name="TbGWEditorWorkspace" IsReadOnly="True" />
+                            <TextBox x:Name="TbGWEditorClientRoot" IsReadOnly="True" Margin="0,6,0,0"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="2"
+                                x:Name="BtnGWEditorRefresh"
+                                Content="새로고침"
+                                Width="90"
+                                Margin="10,0,0,0"
+                                Click="BtnGWEditorRefresh_Click"/>
+
+                        <Button Grid.Column="3"
+                                x:Name="BtnRunGWEditor"
+                                Content="실행"
+                                Width="80"
+                                Margin="8,0,0,0"
+                                Click="BtnRunGWEditor_Click"/>
+                    </Grid>
+
+                    <!-- 안내 -->
+                    <TextBlock Grid.Row="1"
+                            Text="Client Root 기준으로 Engine\Binaries\Win64\UnrealEditor.exe 와 GW\GW.uproject 를 찾아 실행합니다."
+                            TextWrapping="Wrap"
+                            Margin="0,0,0,8"/>
+
+                    <!-- 탭별 로그 -->
                     <TextBox x:Name="TxtGWEditorLog"
-                             Grid.Row="1"
-                             IsReadOnly="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Auto"
-                             AcceptsReturn="True"/>
+                            Grid.Row="2"
+                            IsReadOnly="True"
+                            TextWrapping="Wrap"
+                            VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Auto"
+                            AcceptsReturn="True"/>
                 </Grid>
             </TabItem>
+
 
             <!-- 4) GameStarter (v2 UI 그대로 유지) -->
             <TabItem Header="GameStarter">
