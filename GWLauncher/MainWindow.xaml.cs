@@ -602,5 +602,48 @@ namespace BravoGameLauncherGui
             }
         }
 
+        private bool _gwEditorRefreshing = false;
+
+        private async void MainTab_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // SelectionChanged는 탭 내부 컨트롤에서도 버블링될 수 있어 TabControl에서 발생한 것만 처리
+            if (!ReferenceEquals(e.OriginalSource, sender))
+                return;
+
+            // 선택된 탭이 GWEditor일 때만 자동 갱신
+            if (sender is System.Windows.Controls.TabControl tc && tc.SelectedItem is TabItem tab)
+            {
+                // Header가 "GWEditor"인 탭을 타겟 (너희 탭명 그대로)
+                if ((tab.Header?.ToString() ?? "") == "GWEditor")
+                {
+                    await AutoRefreshGWEditorAsync();
+                }
+            }
+        }
+
+        private async Task AutoRefreshGWEditorAsync()
+        {
+            if (_gwEditorRefreshing)
+                return;
+
+            _gwEditorRefreshing = true;
+            try
+            {
+                // 버튼은 유지하되, 자동 갱신 중엔 잠깐 비활성(선택)
+                if (BtnGWEditorRefresh != null) BtnGWEditorRefresh.IsEnabled = false;
+                if (BtnRunGWEditor != null) BtnRunGWEditor.IsEnabled = false;
+
+                await RefreshGWEditorP4InfoAsync();
+
+                if (BtnRunGWEditor != null) BtnRunGWEditor.IsEnabled = true;
+            }
+            finally
+            {
+                if (BtnGWEditorRefresh != null) BtnGWEditorRefresh.IsEnabled = true;
+                _gwEditorRefreshing = false;
+            }
+        }
+
+
     }
 }

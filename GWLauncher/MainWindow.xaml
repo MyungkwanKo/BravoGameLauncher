@@ -26,7 +26,8 @@
         <TabControl Grid.Row="1"
                     TabStripPlacement="Left"
                     SelectedIndex="3"
-                    Margin="0">
+                    Margin="0"
+                    SelectionChanged="MainTab_SelectionChanged">
 
             <!-- 1) Setup_p4 -->
             <TabItem Header="Setup p4">
