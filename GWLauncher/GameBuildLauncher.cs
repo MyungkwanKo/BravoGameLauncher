@@ -380,7 +380,7 @@ namespace BravoGameLauncherGui
             }
 
             // 4️⃣ 고정 실행 커맨드
-            string args = "/GWBattleRoyale/Maps/L_BR_Proto -log -port=7777";
+            string args = "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log";
 
             _log($"[INFO] DS 실행: {serverExe} {args}");
 
@@ -518,7 +518,7 @@ namespace BravoGameLauncherGui
             }
 
             // 3) DS 실행 (커맨드 고정)
-            string dsArgs = "/GWBattleRoyale/Maps/L_BR_Proto -log -port=7777";
+            string dsArgs = "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log";
             _log($"[INFO] DS 실행: {dsExePath} {dsArgs}");
 
             Process.Start(new ProcessStartInfo
