@@ -13,15 +13,37 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 상단 메뉴 (공통) -->
-        <Menu Grid.Row="0">
-            <MenuItem Header="옵션(_O)">
-                <MenuItem Header="캐시 경로 변경..." Click="MenuChangeCachePath_Click" />
-                <MenuItem Header="캐시 전체 삭제..." Click="MenuClearCache_Click" />
-                <Separator />
-                <MenuItem Header="종료(_X)" Click="MenuExit_Click" />
-            </MenuItem>
-        </Menu>
+        <!-- 상단 공통 헤더: 메뉴 + 위키 링크(항상 고정) -->
+        <Grid Grid.Row="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 상단 메뉴 (공통) -->
+            <Menu Grid.Row="0">
+                <MenuItem Header="옵션(_O)">
+                    <MenuItem Header="캐시 경로 변경..." Click="MenuChangeCachePath_Click" />
+                    <MenuItem Header="캐시 전체 삭제..." Click="MenuClearCache_Click" />
+                    <Separator />
+                    <MenuItem Header="종료(_X)" Click="MenuExit_Click" />
+                </MenuItem>
+            </Menu>
+
+            <!-- 상단 고정 Wiki 링크 -->
+            <Border Grid.Row="1"
+                    Padding="10,6"
+                    BorderBrush="#DDDDDD"
+                    BorderThickness="0,0,0,1"
+                    Background="Transparent">
+                <TextBlock VerticalAlignment="Center">
+                    <Hyperlink NavigateUri="https://krafton.atlassian.net/wiki/spaces/PROJECTGW/pages/846770135/GW+Launcher"
+                            RequestNavigate="Hyperlink_RequestNavigate">
+                        [통합런처 사용 가이드 wiki 바로가기]
+                    </Hyperlink>
+                </TextBlock>
+            </Border>
+        </Grid>
 
         <!-- 좌측 탭 메뉴 -->
         <TabControl Grid.Row="1"

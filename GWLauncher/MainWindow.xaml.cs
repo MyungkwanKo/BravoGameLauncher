@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Text;
+using System.Windows.Navigation;
 
 namespace BravoGameLauncherGui
 {
@@ -939,6 +940,16 @@ namespace BravoGameLauncherGui
             // 예: await _launcher.RunAsync(winZip, useWindowed);
             // 또는 v4에서 local+ds를 함께 띄우는 버튼이라면:
             // await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed);
+        }
+
+        private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = e.Uri.AbsoluteUri,
+                UseShellExecute = true
+            });
+            e.Handled = true;
         }
 
     }
