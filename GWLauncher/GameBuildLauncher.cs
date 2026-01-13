@@ -312,6 +312,9 @@ namespace BravoGameLauncherGui
 
         public async Task RunDedicatedServerAsync(string dsZipFileName)
         {
+            // ✅ v5: DS만 실행에서도 기존 DS가 떠 있으면 종료
+            KillRunningDedicatedServer();
+
             if (string.IsNullOrWhiteSpace(dsZipFileName))
             {
                 _log("[ERROR] DS ZIP 파일명이 비어 있습니다.");

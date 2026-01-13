@@ -142,6 +142,44 @@ namespace BravoGameLauncherGui
             }
         }
 
+        private async void BtnRunDS_Click(object sender, RoutedEventArgs e)
+        {
+            BtnRunDS.IsEnabled = false;
+
+            try
+            {
+                if (LvBuilds.ItemsSource == null)
+                {
+                    AppendLog("[WARN] 실행할 빌드가 없습니다. 빌드목록을 먼저 새로고침하세요.");
+                    return;
+                }
+
+                if (LvBuilds.SelectedItem is not ServerBuildItem selected)
+                {
+                    AppendLog("[WARN] DS 실행할 빌드를 체크하세요.");
+                    return;
+                }
+
+                // 선택된 WIN zip -> DS zip 이름으로 변환
+                // 예: GW_..._20260112230019.zip  => GW_..._20260112230019_DS.zip
+                string winZip = selected.FileName;
+                string dsZip = System.IO.Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
+
+                // 최근 목록 기록은 기존 방식 유지 (원하면 DS도 기록 가능)
+                // _settings.AddRecentFileName(dsZip); _settings.Save();
+
+                await _launcher.RunDedicatedServerAsync(dsZip);
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[ERROR] 예외가 발생했습니다.");
+                AppendLog(ex.Message);
+            }
+            finally
+            {
+                BtnRunDS.IsEnabled = true;
+            }
+}
 
         private void AppendLog(string message)
         {
@@ -948,8 +986,5 @@ namespace BravoGameLauncherGui
                 BtnP4SyncRefresh.IsEnabled = true;
             }
         }
-
-
-
     }
 }

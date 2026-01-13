@@ -223,7 +223,7 @@
                                 Click="BtnRefreshFromServer_Click" />
 
                         <Button x:Name="BtnRun"
-                                Content="실행"
+                                Content="게임 실행"
                                 Width="80"
                                 Margin="0,0,8,0"
                                 Click="BtnRun_Click" />
@@ -232,6 +232,18 @@
                                   Content="창모드"
                                   VerticalAlignment="Center"
                                   Margin="0,0,8,0" />
+
+                        <!-- 구분선 -->
+                        <TextBlock Text="│"
+                                VerticalAlignment="Center"
+                                Margin="4,0,4,0" />
+
+                        <!-- DS만 실행 -->
+                        <Button x:Name="BtnRunDS"
+                                Content="DS만 실행"
+                                Width="90"
+                                Margin="0,0,8,0"
+                                Click="BtnRunDS_Click" />
                     </StackPanel>
 
                     <!-- 캐시 경로 -->
