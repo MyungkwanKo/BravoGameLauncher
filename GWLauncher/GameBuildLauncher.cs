@@ -374,29 +374,7 @@ namespace BravoGameLauncherGui
             _log("[INFO] DS 압축 해제 완료.");
 
             // 3️⃣ GWServer.exe 탐색
-            var serverExe = Directory.GetFiles(unpackDir, "GWServer.exe", SearchOption.AllDirectories)
-                                    .FirstOrDefault();
-
-            if (string.IsNullOrWhiteSpace(serverExe))
-            {
-                _log("[ERROR] GWServer.exe 를 찾지 못했습니다.");
-                return;
-            }
-
-            // 4️⃣ 고정 실행 커맨드
-            string args = "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log";
-
-            _log($"[INFO] DS 실행: {serverExe} {args}");
-
-            var psi = new ProcessStartInfo
-            {
-                FileName         = serverExe,
-                Arguments        = args,
-                WorkingDirectory = Path.GetDirectoryName(serverExe)!,
-                UseShellExecute  = false
-            };
-
-            Process.Start(psi);
+            StartDedicatedServer(unpackDir);
         }
 
         private async Task<string> DownloadAndExtractAsync(string zipFileName, string platform)
@@ -522,16 +500,7 @@ namespace BravoGameLauncherGui
             }
 
             // 3) DS 실행 (커맨드 고정)
-            string dsArgs = "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log";
-            _log($"[INFO] DS 실행: {dsExePath} {dsArgs}");
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName         = dsExePath,
-                Arguments        = dsArgs,
-                WorkingDirectory = Path.GetDirectoryName(dsExePath) ?? dsUnpackDir,
-                UseShellExecute  = false
-            });
+            StartDedicatedServer(dsUnpackDir);
 
             // 4) Client 실행 (DS 실행 후)
             string clientArgs = "-log";
@@ -549,6 +518,26 @@ namespace BravoGameLauncherGui
             });
         }
 
+        private void StartDedicatedServer(string dsUnpackDir)
+        {
+            // GWServer.exe 탐색
+            string? dsExePath = FindExecutable(dsUnpackDir, "GWServer.exe");
+            if (string.IsNullOrWhiteSpace(dsExePath) || !File.Exists(dsExePath))
+            {
+                _log("[ERROR] DS 실행 파일(GWServer.exe)을 찾지 못했습니다.");
+                return;
+            }
 
+            string dsArgs = "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log";
+            _log($"[INFO] DS 실행: {dsExePath} {dsArgs}");
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName         = dsExePath,
+                Arguments        = dsArgs,
+                WorkingDirectory = Path.GetDirectoryName(dsExePath) ?? dsUnpackDir,
+                UseShellExecute  = false
+            });
+        }
     }
 }

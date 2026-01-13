@@ -94,92 +94,13 @@ namespace BravoGameLauncherGui
 
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
-            BtnRun.IsEnabled = false;
-
-            try
-            {
-                if (LvBuilds.ItemsSource == null)
-                {
-                    AppendLog("[WARN] 실행할 빌드가 없습니다. 빌드목록을 먼저 새로고침하세요.");
-                    return;
-                }
-
-                if (LvBuilds.SelectedItem is not ServerBuildItem selected)
-                {
-                    AppendLog("[WARN] 실행할 빌드를 체크하세요.");
-                    return;
-                }
-
-                bool useWindowed = CbWindowed.IsChecked == true;
-                string clientZip = selected.FileName;
-
-                _settings.AddRecentFileName(clientZip);
-                _settings.Save();
-
-                // 2️⃣ Local 실행
-                if (selected.DS == "O")
-                {
-                    string baseName = Path.GetFileNameWithoutExtension(clientZip);
-                    string dsZip = baseName + "_DS.zip";
-
-                    // ✅ 병렬 준비 + DS 먼저 실행 + Client 실행 (한 방에)
-                    await _launcher.RunLocalWithDedicatedServerAsync(clientZip, dsZip, useWindowed);
-                }
-                else
-                {
-                    // DS 없으면 Client만 실행
-                    await _launcher.RunAsync(clientZip, useWindowed);
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendLog("[ERROR] 실행 중 예외 발생");
-                AppendLog(ex.Message);
-            }
-            finally
-            {
-                BtnRun.IsEnabled = true;
-            }
+            await RunSelectedBuildAsync(RunMode.GameOnly);
         }
 
         private async void BtnRunDS_Click(object sender, RoutedEventArgs e)
         {
-            BtnRunDS.IsEnabled = false;
-
-            try
-            {
-                if (LvBuilds.ItemsSource == null)
-                {
-                    AppendLog("[WARN] 실행할 빌드가 없습니다. 빌드목록을 먼저 새로고침하세요.");
-                    return;
-                }
-
-                if (LvBuilds.SelectedItem is not ServerBuildItem selected)
-                {
-                    AppendLog("[WARN] DS 실행할 빌드를 체크하세요.");
-                    return;
-                }
-
-                // 선택된 WIN zip -> DS zip 이름으로 변환
-                // 예: GW_..._20260112230019.zip  => GW_..._20260112230019_DS.zip
-                string winZip = selected.FileName;
-                string dsZip = System.IO.Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
-
-                // 최근 목록 기록은 기존 방식 유지 (원하면 DS도 기록 가능)
-                // _settings.AddRecentFileName(dsZip); _settings.Save();
-
-                await _launcher.RunDedicatedServerAsync(dsZip);
-            }
-            catch (Exception ex)
-            {
-                AppendLog("[ERROR] 예외가 발생했습니다.");
-                AppendLog(ex.Message);
-            }
-            finally
-            {
-                BtnRunDS.IsEnabled = true;
-            }
-}
+            await RunSelectedBuildAsync(RunMode.DedicatedServerOnly);
+        }
 
         private void AppendLog(string message)
         {
@@ -986,5 +907,39 @@ namespace BravoGameLauncherGui
                 BtnP4SyncRefresh.IsEnabled = true;
             }
         }
+
+        private enum RunMode { GameOnly, DedicatedServerOnly }
+
+        private async Task RunSelectedBuildAsync(RunMode mode)
+        {
+            if (LvBuilds.SelectedItem is not ServerBuildItem selected)
+            {
+                AppendLog("[WARN] 실행할 빌드를 선택하세요.");
+                return;
+            }
+
+            // 빌드 목록은 WIN zip 기준이라고 가정
+            bool useWindowed = CbWindowed.IsChecked == true;
+            string winZip = selected.FileName; // 네 프로젝트 실제 프로퍼티명에 맞춰 유지
+            string dsZip  = Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
+
+            if (mode == RunMode.DedicatedServerOnly)
+            {
+                await _launcher.RunDedicatedServerAsync(dsZip);
+                return;
+            }
+
+            if (mode == RunMode.GameOnly)
+            {
+                await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed);
+                return;
+            }
+
+            // GameOnly는 기존 로직 그대로 유지
+            // 예: await _launcher.RunAsync(winZip, useWindowed);
+            // 또는 v4에서 local+ds를 함께 띄우는 버튼이라면:
+            // await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed);
+        }
+
     }
 }
