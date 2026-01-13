@@ -78,11 +78,12 @@ namespace BravoGameLauncherGui
             {
                 _log("[INFO] ZIP 다운로드 시작...");
 
-                using var response = await HttpClient.GetAsync(downloadUrl);
+                using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
 
-                await using var fs = File.Create(zipPath);
+                await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
                 await response.Content.CopyToAsync(fs);
+
 
                 _log("[INFO] ZIP 다운로드 완료.");
             }
@@ -345,10 +346,10 @@ namespace BravoGameLauncherGui
             {
                 _log("[INFO] DS ZIP 다운로드 시작...");
 
-                using var response = await HttpClient.GetAsync(downloadUrl);
+                using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
 
-                await using var fs = File.Create(zipPath);
+                await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
                 await response.Content.CopyToAsync(fs);
 
                 _log("[INFO] DS ZIP 다운로드 완료.");
@@ -424,10 +425,10 @@ namespace BravoGameLauncherGui
                 _log($"[INFO] ({platform}) ZIP 다운로드 시작...");
                 _log($"       URL: {downloadUrl}");
 
-                using var response = await HttpClient.GetAsync(downloadUrl);
+                using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
 
-                await using var fs = File.Create(zipPath);
+                await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
                 await response.Content.CopyToAsync(fs);
 
                 _log($"[INFO] ({platform}) ZIP 다운로드 완료.");
