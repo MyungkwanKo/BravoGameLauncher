@@ -767,9 +767,9 @@ namespace BravoGameLauncherGui
 
                 AppendP4SyncLog("=== p4 sync 시작 ===");
 
-                // [2/6] 로컬 최신 CL
+                // [1/4] 로컬 최신 CL
                 AppendP4SyncLog("");
-                AppendP4SyncLog("[2/6] 로컬 최신 changelist 조회 중...");
+                AppendP4SyncLog("[1/4] 로컬 최신 changelist 조회 중...");
 
                 var (exitLocal, outLocal, errLocal) = await RunProcessCaptureAsync("p4", $"changes -m1 @{ws}", root);
                 if (exitLocal != 0)
@@ -782,46 +782,16 @@ namespace BravoGameLauncherGui
                 if (localCL < 0) localCL = 0;
                 AppendP4SyncLog($"- 로컬 최신 CL : {localCL}");
 
-                // [3/6] 서버 최신 CL
+                // [2/4] GW_ProjectBuild CL scan
                 AppendP4SyncLog("");
-                AppendP4SyncLog("[3/6] 서버 최신 changelist 조회 중...");
-
-                var (exitServer, outServer, errServer) = await RunProcessCaptureAsync("p4", $"changes -m1 {TARGET_DEPOT}", root);
-                if (exitServer != 0)
-                {
-                    AppendP4SyncLog($"[ERROR] 서버 최신 CL 조회 실패 (ExitCode={exitServer})");
-                    if (!string.IsNullOrWhiteSpace(errServer)) AppendP4SyncLog("[ERR] " + errServer.Trim());
-                    return;
-                }
-
-                int serverCL = ParseChangeNumber(outServer);
-                if (serverCL < 0)
-                {
-                    AppendP4SyncLog("[ERROR] 서버 최신 CL 파싱 실패");
-                    return;
-                }
-
-                AppendP4SyncLog($"- 서버 최신 CL : {serverCL}");
-
-                if (localCL >= serverCL)
-                {
-                    AppendP4SyncLog("");
-                    AppendP4SyncLog($"[INFO] 이미 서버 최신 CL({serverCL})까지 동기화되어 있습니다. sync 생략.");
-                    return;
-                }
-
-                AppendP4SyncLog($"[INFO] 서버에 더 최신 변경사항이 있습니다. (LOCAL: {localCL}, SERVER: {serverCL})");
-
-                // [4/6] Jenkins build CL scan
-                AppendP4SyncLog("");
-                AppendP4SyncLog("[4/6] Jenkins build changelist scan (최근 5개 후보)...");
+                AppendP4SyncLog("[2/4] GW_ProjectBuild CL scan (최근 5개)...");
 
                 var (exitCandidates, outCandidates, errCandidates) =
                     await RunProcessCaptureAsync("p4", $"changes -u {JENKINS_USER} -c {JENKINS_CLIENT} -m5 {TARGET_DEPOT}", root);
 
                 if (exitCandidates != 0)
                 {
-                    AppendP4SyncLog($"[WARN] Jenkins 후보 CL 조회 실패 (ExitCode={exitCandidates})");
+                    AppendP4SyncLog($"[WARN] GW_ProjectBuild CL 조회 실패 (ExitCode={exitCandidates})");
                     if (!string.IsNullOrWhiteSpace(errCandidates)) AppendP4SyncLog("[ERR] " + errCandidates.Trim());
                     return;
                 }
@@ -835,7 +805,7 @@ namespace BravoGameLauncherGui
 
                 if (candidateCLs.Count == 0)
                 {
-                    AppendP4SyncLog("[WARN] Jenkins 후보 CL이 없습니다. sync 없이 종료합니다.");
+                    AppendP4SyncLog("[WARN] GW_ProjectBuild CL이 없습니다. sync 없이 종료합니다.");
                     return;
                 }
 
@@ -843,19 +813,19 @@ namespace BravoGameLauncherGui
 
                 foreach (var cl in candidateCLs)
                 {
-                    AppendP4SyncLog($"  [DEBUG] Candidate CL: {cl}");
+                    // AppendP4SyncLog($"  [DEBUG] Candidate CL: {cl}");
 
                     var (exitDesc, outDesc, errDesc) = await RunProcessCaptureAsync("p4", $"describe -s {cl}", root);
                     if (exitDesc != 0)
                     {
-                        AppendP4SyncLog($"  [WARN] describe 실패 (CL={cl}, ExitCode={exitDesc})");
+                        AppendP4SyncLog($"  [WARN] GW_ProjectBuild describe 실패 (CL={cl}, ExitCode={exitDesc})");
                         if (!string.IsNullOrWhiteSpace(errDesc)) AppendP4SyncLog("  [ERR] " + errDesc.Trim());
                         continue;
                     }
 
                     if (outDesc.IndexOf(TAG, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        AppendP4SyncLog($"  [DEBUG] Jenkins 태그 발견: {TAG} (CL={cl})");
+                        // AppendP4SyncLog($"  [DEBUG] GW_ProjectBuild 태그 발견: {TAG} (CL={cl})");
                         targetJenkinsCL = cl;
                         break;
                     }
@@ -868,28 +838,27 @@ namespace BravoGameLauncherGui
                 if (targetJenkinsCL <= 0)
                 {
                     AppendP4SyncLog("");
-                    AppendP4SyncLog($"[WARN] 최근 5개의 Jenkins CL 중에서 태그({TAG})를 찾지 못했습니다. sync 없이 종료합니다.");
+                    AppendP4SyncLog($"[WARN] 최근 5개의 GW_ProjectBuild CL 중에서 태그({TAG})를 찾지 못했습니다. sync 없이 종료합니다.");
                     return;
                 }
 
                 AppendP4SyncLog("");
-                AppendP4SyncLog($"[INFO] TARGET_JENKINS_CL : {targetJenkinsCL}");
+                AppendP4SyncLog($"[INFO] 최신 GW_ProjectBuild CL : {targetJenkinsCL}");
 
-                // [5/6] 비교
+                // [3/4] 비교
                 AppendP4SyncLog("");
-                AppendP4SyncLog("[5/6] 로컬 CL과 Jenkins 빌드 CL 비교 중...");
+                AppendP4SyncLog("[3/4] 로컬 CL과 GW_ProjectBuild CL 비교 중...");
 
                 if (targetJenkinsCL <= localCL)
                 {
-                    AppendP4SyncLog($"[INFO] 로컬 CL({localCL})이 Jenkins CL({targetJenkinsCL})보다 새롭거나 같아 sync 생략.");
+                    AppendP4SyncLog($"[INFO] 로컬 CL({localCL})이 최신 GW_ProjectBuild CL({targetJenkinsCL})보다 새롭거나 같아 sync 생략.");
                     return;
                 }
 
-                AppendP4SyncLog($"[INFO] Jenkins CL({targetJenkinsCL})이 로컬 CL({localCL})보다 최신입니다. sync 진행.");
-
-                // [6/6] Sync
+                AppendP4SyncLog($"[INFO] 최신 GW_ProjectBuild CL({targetJenkinsCL})이 로컬 CL({localCL})보다 최신입니다. sync 진행.");
+                // [4/4] Sync
                 AppendP4SyncLog("");
-                AppendP4SyncLog($"[6/6] p4 sync ...@{targetJenkinsCL} 실행");
+                AppendP4SyncLog($"[4/4] p4 sync ...@{targetJenkinsCL} 실행");
 
                 int code = await RunProcessAsync("p4", $"sync ...@{targetJenkinsCL}", AppendP4SyncLog, root);
                 if (code != 0)
@@ -899,7 +868,7 @@ namespace BravoGameLauncherGui
                 }
 
                 AppendP4SyncLog("");
-                AppendP4SyncLog($"[OK] 워크스페이스가 changelist {targetJenkinsCL} 기준으로 동기화되었습니다.");
+                AppendP4SyncLog($"[OK] 로컬 워크스페이스가 최신 GW_ProjectBuild CL {targetJenkinsCL} 까지 동기화되었습니다.");
                 AppendP4SyncLog("=== p4 sync 완료 ===");
             }
             finally
