@@ -39,6 +39,11 @@ namespace BravoGameLauncherGui
         {
             InitializeComponent();
 
+            // Setup p4 - P4USER 기본 선택: gw_developer
+            CbP4UserDeveloper.IsChecked = true;
+            CbP4UserEngine.IsChecked = false;
+            CbP4UserGuest.IsChecked = false;
+
             TbP4Workspace.Text = new DirectoryInfo(Environment.CurrentDirectory).Name;
 
             _settings = AppSettings.Load();
@@ -400,6 +405,11 @@ namespace BravoGameLauncherGui
                 code = await RunProcessAsync("p4", "set P4CHARSET=utf8", AppendSetupP4Log);
                 if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
 
+                var p4user = GetSelectedP4User();
+                AppendSetupP4Log($"P4USER: {p4user}");
+                code = await RunProcessAsync("p4", $"set P4USER={p4user}", AppendSetupP4Log);
+                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+
                 code = await RunProcessAsync("p4", "set P4PORT=bravo-repo.omnicraftlabs.co.kr:1666", AppendSetupP4Log);
                 if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
 
@@ -424,6 +434,60 @@ namespace BravoGameLauncherGui
             {
                 BtnSetupP4Apply.IsEnabled = true;
             }
+        }
+
+        private void CbP4UserDeveloper_Click(object sender, RoutedEventArgs e)
+        {
+            if (CbP4UserDeveloper.IsChecked == true)
+            {
+                CbP4UserEngine.IsChecked = false;
+                CbP4UserGuest.IsChecked = false;
+            }
+            else
+            {
+                // 전부 해제 방지: 항상 1개는 선택 유지
+                if (CbP4UserEngine.IsChecked != true && CbP4UserGuest.IsChecked != true)
+                    CbP4UserDeveloper.IsChecked = true;
+            }
+        }
+
+        private void CbP4UserEngine_Click(object sender, RoutedEventArgs e)
+        {
+            if (CbP4UserEngine.IsChecked == true)
+            {
+                CbP4UserDeveloper.IsChecked = false;
+                CbP4UserGuest.IsChecked = false;
+            }
+            else
+            {
+                if (CbP4UserDeveloper.IsChecked != true && CbP4UserGuest.IsChecked != true)
+                    CbP4UserEngine.IsChecked = true;
+            }
+        }
+
+        private void CbP4UserGuest_Click(object sender, RoutedEventArgs e)
+        {
+            if (CbP4UserGuest.IsChecked == true)
+            {
+                CbP4UserDeveloper.IsChecked = false;
+                CbP4UserEngine.IsChecked = false;
+            }
+            else
+            {
+                if (CbP4UserDeveloper.IsChecked != true && CbP4UserEngine.IsChecked != true)
+                    CbP4UserGuest.IsChecked = true;
+            }
+        }
+
+        private string GetSelectedP4User()
+        {
+            // 체크된 체크박스(Tag)를 그대로 사용 (XAML이 단일 소스)
+            if (CbP4UserDeveloper.IsChecked == true) return CbP4UserDeveloper.Tag?.ToString() ?? "gw_developer";
+            if (CbP4UserEngine.IsChecked == true) return CbP4UserEngine.Tag?.ToString() ?? "gw_engine";
+            if (CbP4UserGuest.IsChecked == true) return CbP4UserGuest.Tag?.ToString() ?? "gw_guest";
+
+            // 혹시 모를 예외 케이스(전부 해제 방지 로직이 있어도 안전장치)
+            return "gw_developer";
         }
 
         private void AppendGWEditorLog(string message)

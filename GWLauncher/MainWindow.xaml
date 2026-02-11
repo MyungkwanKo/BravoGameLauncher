@@ -58,6 +58,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -81,9 +82,34 @@
                                 Click="BtnSetupP4Apply_Click"/>
                     </StackPanel>
 
+                    <!-- P4USER 선택 (단일 선택 체크박스) -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="P4USER:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <CheckBox x:Name="CbP4UserDeveloper"
+                                VerticalAlignment="Center"
+                                Margin="0,0,10,0"
+                                Click="CbP4UserDeveloper_Click">
+                            <TextBlock Text="gw_developer"/>
+                        </CheckBox>
+
+                        <CheckBox x:Name="CbP4UserEngine"
+                                VerticalAlignment="Center"
+                                Margin="0,0,10,0"
+                                Click="CbP4UserEngine_Click">
+                            <TextBlock Text="gw_engine"/>
+                        </CheckBox>
+
+                        <CheckBox x:Name="CbP4UserGuest"
+                                VerticalAlignment="Center"
+                                Margin="0,0,10,0"
+                                Click="CbP4UserGuest_Click">
+                            <TextBlock Text="gw_guest"/>
+                        </CheckBox>
+                        </StackPanel>
+
                     <!-- 탭별 로그: Setup p4 -->
                     <TextBox x:Name="TxtSetupP4Log"
-                             Grid.Row="2"
+                             Grid.Row="3"
                              IsReadOnly="True"
                              TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto"
