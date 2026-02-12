@@ -4,6 +4,21 @@
 (런처 + 런처 스타터)
 
 ---
+## 🆕 v7 변경 사항 요약
+
+### ✅ Engine 탭 추가 (Installed Build)
+- **Engine 탭** 신규 추가: Unreal Engine Installed Build 다운로드/설치
+- **엔진 버전 선택**: ComboBox로 버전 선택 (예: UE5.6), 설정에 저장
+- **설치 경로**: 기본 경로 `{드라이브}\GW_Engine\{엔진버전}` 지원, "변경..."으로 BasePath 수정 가능
+- **서버 연동**: `latest.json` 기반 최신 빌드 정보 표시 (label, CL, Jenkins 빌드, ZIP 정보)
+- **로컬 상태**: `installed_build.meta.json`으로 설치 여부·버전 표시, 업데이트 필요 시 "다운로드 + 설치" 활성화
+- **동작**:
+  - **새로고침**: 서버/로컬 상태 재조회
+  - **다운로드**: ZIP만 다운로드 (진행률, SHA256 검증)
+  - **다운로드 + 설치**: 다운로드 후 압축 해제하여 `Engine` 폴더만 설치 경로에 적용
+- 탭 진입 시 자동으로 상태 갱신
+
+---
 ## 🆕 v5 변경 사항 요약
 
 ### ✅ GameStarter 기능 확장
@@ -58,6 +73,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 
 | 탭 | 기능 |
 |----|----|
+| Engine | Installed Build(엔진) 다운로드/설치 (latest.json 기반) |
 | Setup_p4 | Perforce 환경 변수 설정 |
 | p4_sync | Jenkins 빌드 기준 Perforce 동기화 |
 | GWEditor | Installed Build Unreal Editor 실행 |
@@ -83,6 +99,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 │     ├─ GameBuildLauncher.cs
 │     ├─ BuildListService.cs
 │     ├─ AppSettings.cs
+│     ├─ InstalledBuildServices.cs   ← Engine(Installed Build) 다운로드/설치
 │     ├─ LauncherVersionInfo.cs
 │     └─ (통합 런처 관련 전체 스크립트)
 │
@@ -96,6 +113,15 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 ---
 
 ## 📌 2. GWLauncher(v3) 기능 구성
+
+### 🔸 Engine 탭
+- Installed Build(Unreal Engine) 다운로드 및 설치
+- 서버 `latest.json`(엔진 버전별) 기반 최신 빌드 정보 표시
+- 설치 경로: `{BasePath}\GW_Engine\{엔진버전}` (BasePath 변경 가능)
+- **다운로드**: ZIP만 다운로드 (진행률, SHA256 검증)
+- **다운로드 + 설치**: 다운로드 후 압축 해제하여 `Engine` 폴더만 적용
+- 로컬 `installed_build.meta.json`으로 설치 상태·업데이트 필요 여부 표시
+- 탭 진입 시 자동 상태 갱신
 
 ### 🔸 Setup_p4 탭
 - Perforce 환경 변수 설정 (1회성)
@@ -141,7 +167,7 @@ Run_GWLauncher.exe
       ↓
 GWLauncher.exe 실행
       ↓
-[Setup_p4 | p4_sync | GWEditor | GameStarter]
+[Engine | Setup_p4 | p4_sync | GWEditor | GameStarter]
 ```
 
 ---
@@ -173,6 +199,7 @@ dotnet publish -c Release -r win-x64 ^
 | 구성 요소 | 역할 |
 |----|----|
 | GWLauncher | 통합 개발 런처 |
+| Engine | Installed Build(엔진) 다운로드/설치 |
 | GameStarter | 게임/DS 실행 |
 | Run_GWLauncher | 런처 스타터 |
 | Setup_p4 | Perforce 초기 설정 |
@@ -271,7 +298,8 @@ GWServer.exe /GWBattleRoyale/Maps/L_BR_Proto -log -port=7777
 
 #### ✔ AppSettings.cs
 - 캐시 경로 저장  
-- 최근 실행한 ZIP 기록 저장
+- 최근 실행한 ZIP 기록 저장  
+- Engine 탭: Installed Build 기본 경로(`InstalledBuildBasePath`), 선택 엔진 버전(`SelectedEngineVersion`) 저장
 
 #### ✔ LauncherVersionInfo.cs
 - 런처 버전 정보 (정수 기반 버전: v1, v2, v3...)  
