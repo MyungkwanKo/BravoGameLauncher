@@ -577,11 +577,10 @@ namespace BravoGameLauncherGui
             }
         }
 
-
         private async Task RefreshGWEditorP4InfoAsync()
         {
             TxtGWEditorLog.Clear();
-            AppendGWEditorLog("=== GWEditor: Workspace/ClientRoot 확인 ===");
+            AppendGWEditorLog("=== GWEditor: Workspace / Project / Editor 경로 확인 ===");
 
             var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", "-ztag info");
             if (exit != 0)
@@ -591,27 +590,38 @@ namespace BravoGameLauncherGui
                     AppendGWEditorLog(stderr.Trim());
 
                 TbGWEditorWorkspace.Text = "";
-                TbGWEditorClientRoot.Text = "";
+                TbGWEditorProjectPath.Text = "";
+                TbGWEditorEditorExe.Text = "";
                 return;
             }
 
             string ws = "";
-            string root = "";
+            string clientRoot = "";
 
             foreach (var line in stdout.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
             {
                 if (line.StartsWith("... clientName ", StringComparison.OrdinalIgnoreCase))
                     ws = line.Substring("... clientName ".Length).Trim();
                 else if (line.StartsWith("... clientRoot ", StringComparison.OrdinalIgnoreCase))
-                    root = line.Substring("... clientRoot ".Length).Trim();
+                    clientRoot = line.Substring("... clientRoot ".Length).Trim();
             }
 
             TbGWEditorWorkspace.Text = ws;
-            TbGWEditorClientRoot.Text = root;
+
+            // Project(.uproject) 경로는 항상 P4 clientRoot 기준
+            string uproject = Path.Combine(clientRoot, "GW", "GW.uproject");
+            TbGWEditorProjectPath.Text = uproject;
+
+            // Editor exe 경로는 Engine 탭 InstallRoot 기준 (Installed Build)
+            string engineInstallRoot = TbEngineInstallRoot.Text?.Trim() ?? "";
+            string editorExe = Path.Combine(engineInstallRoot, "Engine", "Binaries", "Win64", "UnrealEditor.exe");
+            TbGWEditorEditorExe.Text = editorExe;
 
             AppendGWEditorLog($"Workspace: {ws}");
-            AppendGWEditorLog($"Client Root: {root}");
+            AppendGWEditorLog($"Project: {uproject}");
+            AppendGWEditorLog($"Editor : {editorExe}");
         }
+
 
         private async void BtnGWEditorRefresh_Click(object sender, RoutedEventArgs e)
         {
@@ -619,48 +629,56 @@ namespace BravoGameLauncherGui
             try { await RefreshGWEditorP4InfoAsync(); }
             finally { BtnGWEditorRefresh.IsEnabled = true; }
         }
-
+       
         private void BtnRunGWEditor_Click(object sender, RoutedEventArgs e)
         {
-            string root = (TbGWEditorClientRoot.Text ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            // UI에 표시된 "프로젝트 파일 경로"를 기준으로 실행
+            string uproject = TbGWEditorProjectPath.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(uproject) || !File.Exists(uproject))
             {
-                AppendGWEditorLog("[WARN] Client Root가 비어있거나 유효하지 않습니다. 새로고침 후 다시 시도하세요.");
-                MessageBox.Show("Client Root를 확인할 수 없습니다.\n\n[새로고침] 후 다시 시도하세요.", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AppendGWEditorLog("[WARN] 프로젝트 파일(GW.uproject) 경로가 유효하지 않습니다: " + uproject);
+                MessageBox.Show(
+                    "프로젝트 파일(GW.uproject)을 찾을 수 없습니다.\n\n" + uproject +
+                    "\n\n[새로고침] 후 다시 시도하세요.",
+                    "실행 불가",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
-            string editorExe = System.IO.Path.Combine(root, "Engine", "Binaries", "Win64", "UnrealEditor.exe");
-            string uproject = System.IO.Path.Combine(root, "GW", "GW.uproject");
-
-            if (!File.Exists(editorExe))
+            // UI에 표시된 "에디터 실행 파일 경로"를 기준으로 실행
+            string editorExe = TbGWEditorEditorExe.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(editorExe) || !File.Exists(editorExe))
             {
-                AppendGWEditorLog("[WARN] UnrealEditor.exe를 찾지 못했습니다: " + editorExe);
-                MessageBox.Show($"UnrealEditor.exe를 찾지 못했습니다.\n\n{editorExe}", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            if (!File.Exists(uproject))
-            {
-                AppendGWEditorLog("[WARN] GW.uproject를 찾지 못했습니다: " + uproject);
-                MessageBox.Show($"GW.uproject를 찾지 못했습니다.\n\n{uproject}", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppendGWEditorLog("[WARN] UnrealEditor.exe 경로가 유효하지 않습니다: " + editorExe);
+                MessageBox.Show(
+                    "UnrealEditor.exe를 찾을 수 없습니다.\n\n" + editorExe +
+                    "\n\nEngine 탭에서 Installed Build 설치/경로를 확인하세요.",
+                    "실행 불가",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
                 return;
             }
 
             string args = $"\"{uproject}\" -nocompile -ddc=noshared";
 
-            AppendGWEditorLog("=== UnrealEditor 실행 ===");
-            AppendGWEditorLog(editorExe);
-            AppendGWEditorLog(args);
+            AppendGWEditorLog("=== UnrealEditor 실행 요청 ===");
+            AppendGWEditorLog("Editor : " + editorExe);
+            AppendGWEditorLog("Project: " + uproject);
+            AppendGWEditorLog("Args   : " + args);
 
             try
             {
+                var workDir = Path.GetDirectoryName(editorExe);
+                if (string.IsNullOrWhiteSpace(workDir))
+                    workDir = Environment.CurrentDirectory;
+
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = editorExe,
                     Arguments = args,
-                    WorkingDirectory = root,
-                    UseShellExecute = true,   // start "" 와 유사하게 별도 프로세스로 런치
+                    WorkingDirectory = workDir,
+                    UseShellExecute = true,
                 });
 
                 AppendGWEditorLog("실행 요청 완료.");
@@ -671,6 +689,7 @@ namespace BravoGameLauncherGui
                 MessageBox.Show($"UnrealEditor 실행 실패\n\n{ex.Message}", "실행 오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
 
         private bool _gwEditorRefreshing = false;
 

@@ -144,7 +144,6 @@
                 </ScrollViewer>
             </TabItem>
 
-
             <!-- 1) Setup_p4 -->
             <TabItem Header="Setup p4">
                 <Grid Margin="10">
@@ -278,7 +277,6 @@
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -293,12 +291,14 @@
 
                         <StackPanel Grid.Column="0" Orientation="Vertical" Margin="0,0,10,0">
                             <TextBlock Text="Workspace(P4CLIENT)" />
-                            <TextBlock Text="Client Root" Margin="0,6,0,0"/>
+                            <TextBlock Text="Project (.uproject)" Margin="0,6,0,0"/>
+                            <TextBlock Text="Editor (UnrealEditor.exe)" Margin="0,6,0,0"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Vertical">
                             <TextBox x:Name="TbGWEditorWorkspace" IsReadOnly="True" />
-                            <TextBox x:Name="TbGWEditorClientRoot" IsReadOnly="True" Margin="0,6,0,0"/>
+                            <TextBox x:Name="TbGWEditorProjectPath" IsReadOnly="True" Margin="0,6,0,0"/>
+                            <TextBox x:Name="TbGWEditorEditorExe" IsReadOnly="True" Margin="0,6,0,0"/>
                         </StackPanel>
 
                         <Button Grid.Column="2"
@@ -316,15 +316,9 @@
                                 Click="BtnRunGWEditor_Click"/>
                     </Grid>
 
-                    <!-- 안내 -->
-                    <TextBlock Grid.Row="1"
-                            Text="Client Root 기준으로 Engine\Binaries\Win64\UnrealEditor.exe 와 GW\GW.uproject 를 찾아 실행합니다."
-                            TextWrapping="Wrap"
-                            Margin="0,0,0,8"/>
-
                     <!-- 탭별 로그 -->
                     <TextBox x:Name="TxtGWEditorLog"
-                            Grid.Row="2"
+                            Grid.Row="1"
                             IsReadOnly="True"
                             TextWrapping="Wrap"
                             VerticalScrollBarVisibility="Auto"
