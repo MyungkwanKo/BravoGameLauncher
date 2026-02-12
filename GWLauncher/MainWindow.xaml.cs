@@ -39,6 +39,28 @@ namespace BravoGameLauncherGui
         {
             InitializeComponent();
 
+            _settings = AppSettings.Load();
+            _launcher = new GameBuildLauncher(AppendLog, _settings.RootDownloadDir);
+
+            // Engine 버전 드롭다운 초기화
+            CbEngineVersion.ItemsSource = SupportedEngineVersions;
+
+            // 저장된 선택 버전 반영
+            if (!string.IsNullOrWhiteSpace(_settings.SelectedEngineVersion))
+                _engineVersion = _settings.SelectedEngineVersion;
+
+            if (!SupportedEngineVersions.Contains(_engineVersion))
+                _engineVersion = SupportedEngineVersions.First(); // 안전
+
+            CbEngineVersion.SelectedItem = _engineVersion;
+            
+            // Engine BasePath 기본값 보정
+            if (string.IsNullOrWhiteSpace(_settings.InstalledBuildBasePath))
+                _settings.InstalledBuildBasePath = AppSettings.DefaultInstalledBuildBasePath;
+
+            // UI 반영
+            ApplyEngineBasePathToUi(_settings.InstalledBuildBasePath);
+
             // Setup p4 - P4USER 기본 선택: gw_developer
             CbP4UserDeveloper.IsChecked = true;
             CbP4UserEngine.IsChecked = false;
@@ -46,17 +68,18 @@ namespace BravoGameLauncherGui
 
             TbP4Workspace.Text = new DirectoryInfo(Environment.CurrentDirectory).Name;
 
-            _settings = AppSettings.Load();
-            _launcher = new GameBuildLauncher(AppendLog, _settings.RootDownloadDir);
-
             TxtCachePath.Text = _launcher.RootDownloadDir;
             AppendLog("=== GW Launcher (GUI) ===");
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
             AppendLog(string.Empty);
 
             CmbBuildType.SelectionChanged += (_, __) => RefreshBuildListUI();
-
-            Loaded += async (_, __) => await RefreshFromServerAsync();
+            _engineUiReady = true;
+            Loaded += async (_, __) =>
+            {
+                try { await RefreshFromServerAsync(); }
+                catch (Exception ex) { AppendLog("[ERROR] 초기 서버 로드 실패: " + ex.Message); }
+            };
         }
 
         private void RefreshBuildListUI()
@@ -116,6 +139,17 @@ namespace BravoGameLauncherGui
                 TxtLog.ScrollToEnd();
             });
         }
+
+        //  Engine 탭 로그 함수
+        private void AppendEngineLog(string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                TxtEngineLog.AppendText(message + Environment.NewLine);
+                TxtEngineLog.ScrollToEnd();
+            });
+        }
+
 
         private void AppendSetupP4Log(string message)
         {
@@ -665,6 +699,30 @@ namespace BravoGameLauncherGui
                 await AutoRefreshP4SyncAsync();
                 return;
             }
+
+            if (header == "Engine")
+            {
+                await AutoRefreshEngineAsync();
+                return;
+            }
+
+        }
+
+        private async Task AutoRefreshEngineAsync()
+        {
+            if (_engineRefreshing) return;
+            _engineRefreshing = true;
+
+            try
+            {
+                if (BtnEngineRefresh != null) BtnEngineRefresh.IsEnabled = false;
+                await RefreshEngineStatusAsync();
+            }
+            finally
+            {
+                if (BtnEngineRefresh != null) BtnEngineRefresh.IsEnabled = true;
+                _engineRefreshing = false;
+            }
         }
 
         private async Task AutoRefreshP4SyncAsync()
@@ -983,6 +1041,253 @@ namespace BravoGameLauncherGui
                 UseShellExecute = true
             });
             e.Handled = true;
+        }
+
+        // Engine(Installed Build) 버전 
+        private string _engineVersion = "UE5.6";
+        private static readonly string[] SupportedEngineVersions = { "UE5.6"/*, "UE5.7" 등 추가 */ };
+        private bool _engineUiReady = false;
+
+        // Engine 탭 상태
+        private InstalledBuildLatest? _engineLatest;
+        private InstalledBuildMeta? _engineLocalMeta;
+        private bool _engineRefreshing;
+        private bool _engineWorking;
+
+        private static string GetInstallRoot(string basePath, string ueVersion)
+        {
+            basePath = (basePath ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(basePath))
+                basePath = AppSettings.DefaultInstalledBuildBasePath;
+
+            // 사용자가 GW_Engine 자체를 고른 경우도 허용
+            string leaf = new DirectoryInfo(basePath.TrimEnd(Path.DirectorySeparatorChar)).Name;
+            string gwEngineRoot = leaf.Equals("GW_Engine", StringComparison.OrdinalIgnoreCase)
+                ? basePath
+                : Path.Combine(basePath, "GW_Engine");
+
+            // GW_Engine 폴더가 있으면 그대로 사용, 없으면 생성(InstallRoot 생성 시점에 만들도록)
+            return Path.Combine(gwEngineRoot, ueVersion);
+        }
+
+        private void ApplyEngineBasePathToUi(string basePath)
+        {
+            TbEngineBasePath.Text = basePath;
+            TbEngineInstallRoot.Text = GetInstallRoot(basePath, _engineVersion);
+        }
+
+        private async void BtnEngineRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshEngineStatusAsync();
+        }
+        private async void BtnEngineDownload_Click(object sender, RoutedEventArgs e)
+        {
+            await DownloadInstalledBuildAsync(installAfterDownload: false);
+        }
+        private async void BtnEngineDownloadInstall_Click(object sender, RoutedEventArgs e)
+        {
+            await DownloadInstalledBuildAsync(installAfterDownload: true);
+        }
+
+        private async Task RefreshEngineStatusAsync()
+        {
+            try
+            {
+                PbEngine.IsIndeterminate = true;
+                TxtEngineProgress.Text = "상태 확인 중...";
+                BtnEngineDownload.IsEnabled = false;
+                BtnEngineDownloadInstall.IsEnabled = false;
+
+                string basePath = TbEngineBasePath.Text;
+                string installRoot = GetInstallRoot(basePath, _engineVersion);
+
+                Directory.CreateDirectory(installRoot);
+
+                // 서버 latest.json
+                _engineLatest = await InstalledBuildServices.GetLatestAsync(_engineVersion, AppendEngineLog);
+
+                // 로컬 meta
+                _engineLocalMeta = InstalledBuildServices.TryLoadLocalMeta(installRoot);
+
+                // UI 표시
+                TxtEngineServerInfo.Text = _engineLatest == null
+                    ? "서버 latest.json을 불러오지 못했습니다."
+                    : $"Label: {_engineLatest.label}\nCL: {_engineLatest.cl}\nCreated: {_engineLatest.createdAt}";
+
+                if (_engineLocalMeta == null)
+                {
+                    TxtEngineLocalInfo.Text =
+                        $"InstallRoot: {installRoot}\n로컬 설치: 없음 (meta 없음)";
+                }
+                else
+                {
+                    TxtEngineLocalInfo.Text =
+                        $"InstallRoot: {installRoot}\n로컬 Label: {_engineLocalMeta.label}\n설치일: {_engineLocalMeta.installedAt}";
+                }
+
+
+                bool needUpdate = _engineLatest != null &&
+                                (_engineLocalMeta == null || !string.Equals(_engineLocalMeta.label, _engineLatest.label, StringComparison.OrdinalIgnoreCase));
+
+                BtnEngineDownload.IsEnabled = _engineLatest != null && !_engineWorking;
+                BtnEngineDownloadInstall.IsEnabled = _engineLatest != null && needUpdate && !_engineWorking;
+
+                TxtEngineProgress.Text = needUpdate ? "업데이트 필요" : "최신 상태";
+            }
+            catch (Exception ex)
+            {
+                AppendEngineLog($"[ERROR] 상태 확인 실패: {ex.Message}");
+                TxtEngineProgress.Text = "오류";
+            }
+            finally
+            {
+                PbEngine.IsIndeterminate = false;
+            }
+        }
+
+        private async Task DownloadInstalledBuildAsync(bool installAfterDownload)
+        {
+            if (_engineWorking) return;
+            _engineWorking = true;
+
+            try
+            {
+                if (_engineLatest == null)
+                    _engineLatest = await InstalledBuildServices.GetLatestAsync(_engineVersion, AppendEngineLog);
+
+                if (_engineLatest == null)
+                {
+                    AppendEngineLog("[ERROR] 서버 latest.json 로드 실패");
+                    return;
+                }
+
+                string basePath = TbEngineBasePath.Text;
+                string installRoot = GetInstallRoot(basePath, _engineVersion);
+                Directory.CreateDirectory(installRoot);
+
+                // zip 저장 위치: InstallRoot\{label}.zip
+                string zipPath = Path.Combine(installRoot, $"{_engineLatest.label}.zip");
+
+                BtnEngineDownload.IsEnabled = false;
+                BtnEngineDownloadInstall.IsEnabled = false;
+
+                // 다운로드 (이미 존재하면 size/sha256로 재사용 가능)
+                await InstalledBuildServices.DownloadZipAsync(
+                    url: _engineLatest.zip.url,
+                    destZipPath: zipPath,
+                    expectedSize: _engineLatest.zip.size,
+                    log: AppendEngineLog,
+                    progress: p =>
+                    {
+                        PbEngine.IsIndeterminate = false;
+                        PbEngine.Value = p;
+                        TxtEngineProgress.Text = $"다운로드 {p:0}%";
+                    });
+
+                // 검증
+                TxtEngineProgress.Text = "무결성 검증 중...";
+                PbEngine.IsIndeterminate = true;
+
+                bool ok = await InstalledBuildServices.VerifyZipAsync(
+                    zipPath,
+                    _engineLatest.zip.size,
+                    _engineLatest.zip.sha256,
+                    AppendEngineLog);
+
+                if (!ok)
+                {
+                    TxtEngineProgress.Text = "검증 실패";
+                    return;
+                }
+
+                if (!installAfterDownload)
+                {
+                    TxtEngineProgress.Text = "다운로드 완료";
+                    return;
+                }
+
+                // 언팩(.NET) + 적용(Engine 폴더만)
+                TxtEngineProgress.Text = "압축 해제/적용 중...";
+                PbEngine.IsIndeterminate = true;
+
+                await InstalledBuildServices.ExtractAndApplyAsync(
+                    zipPath: zipPath,
+                    installRoot: installRoot,
+                    log: AppendEngineLog);
+
+                // meta 갱신
+                InstalledBuildServices.SaveLocalMeta(installRoot, new InstalledBuildMeta
+                {
+                    engineVersion = _engineLatest.engineVersion,
+                    label = _engineLatest.label,
+                    installedAt = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz"),
+                    zipFileName = Path.GetFileName(zipPath),
+                    zipSize = _engineLatest.zip.size,
+                    zipSha256 = _engineLatest.zip.sha256,
+                    zipUrl = _engineLatest.zip.url
+                });
+
+                AppendEngineLog("[SUCCESS] 설치 완료 및 meta 갱신");
+                TxtEngineProgress.Text = "설치 완료";
+
+                await RefreshEngineStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                AppendEngineLog($"[ERROR] 다운로드/설치 실패: {ex.Message}");
+                TxtEngineProgress.Text = "오류";
+            }
+            finally
+            {
+                PbEngine.IsIndeterminate = false;
+                PbEngine.Value = 0;
+                _engineWorking = false;
+                BtnEngineDownload.IsEnabled = true;
+                BtnEngineDownloadInstall.IsEnabled = true;
+            }
+        }
+
+        private async void BtnEngineChangePath_Click(object sender, RoutedEventArgs e)
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "Installed Build를 설치할 기본 경로(BasePath)를 선택하세요. (예: D:\\)",
+                SelectedPath = TbEngineBasePath.Text,
+                ShowNewFolderButton = true
+            };
+
+            var result = dialog.ShowDialog();
+            if (result != System.Windows.Forms.DialogResult.OK) return;
+
+            var newBase = dialog.SelectedPath;
+            if (string.IsNullOrWhiteSpace(newBase)) return;
+
+            _settings.InstalledBuildBasePath = newBase;
+            _settings.Save();
+
+            ApplyEngineBasePathToUi(newBase);
+
+            await RefreshEngineStatusAsync();
+        }
+
+        private async void CbEngineVersion_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_engineUiReady) return;
+
+            if (CbEngineVersion.SelectedItem is not string v || string.IsNullOrWhiteSpace(v))
+                return;
+
+            _engineVersion = v.Trim();
+
+            // 선택값 저장(옵션)
+            _settings.SelectedEngineVersion = _engineVersion;
+            _settings.Save();
+
+            // InstallRoot 갱신
+            ApplyEngineBasePathToUi(TbEngineBasePath.Text);
+
+            // 서버 최신/로컬상태 갱신
+            await RefreshEngineStatusAsync();
         }
 
     }

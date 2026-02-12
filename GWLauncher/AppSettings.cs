@@ -9,6 +9,13 @@ namespace BravoGameLauncherGui
     {
         public string RootDownloadDir { get; set; } = DefaultRootPath;
 
+        // Installed builds base path (e.g. C:\BravoGameBuilds)
+        public string InstalledBuildBasePath { get; set; } = DefaultInstalledBuildBasePath;
+
+        public static string DefaultInstalledBuildBasePath =>
+            Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+
+
         public List<string> RecentFileNames { get; set; } = new();
 
         public static string SettingsDir =>
@@ -63,5 +70,8 @@ namespace BravoGameLauncherGui
             if (RecentFileNames.Count > 10)
                 RecentFileNames.RemoveRange(10, RecentFileNames.Count - 10);
         }
+
+        public string SelectedEngineVersion { get; set; } = "UE5.6";
+
     }
 }

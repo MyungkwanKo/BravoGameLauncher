@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:BravoGameLauncherGui"
         Title="{x:Static local:LauncherVersionInfo.WindowTitle}"
-        Height="450"
+        Height="600"
         Width="900"
         WindowStartupLocation="CenterScreen">
 
@@ -51,6 +51,99 @@
                     SelectedIndex="3"
                     Margin="0"
                     SelectionChanged="MainTab_SelectionChanged">
+
+            <!-- 0) Engine -->
+            <TabItem Header="Engine">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- UE 버전 선택 -->
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="UE Version:" Width="90" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="CbEngineVersion"
+                                    Width="160"
+                                    Height="24"
+                                    VerticalContentAlignment="Center"
+                                    SelectionChanged="CbEngineVersion_SelectionChanged"/>
+                        </StackPanel>
+
+                        <!-- 설치 경로 -->
+                        <GroupBox Header="Installed Build 설치 경로" Grid.Row="1" Margin="0,0,0,8">
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock Text="BasePath:" Width="90" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="TbEngineBasePath" Width="520" Height="24" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                                    <Button x:Name="BtnEngineChangePath" Content="변경..." Width="80" Height="24" Margin="8,0,0,0"
+                                            Click="BtnEngineChangePath_Click"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Orientation="Horizontal">
+                                    <TextBlock Text="InstallRoot:" Width="90" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="TbEngineInstallRoot" Width="610" Height="24" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+                        </GroupBox>
+
+                        <!-- 서버/로컬 상태 -->
+                        <Grid Grid.Row="2" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <GroupBox Header="서버 최신 Installed Build" Grid.Column="0" Margin="0,0,6,0">
+                                <Grid Margin="10">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="TxtEngineServerInfo" TextWrapping="Wrap" />
+                                    <Button x:Name="BtnEngineRefresh" Grid.Row="1" Content="새로고침" Width="100" Height="26" Margin="0,8,0,0"
+                                            Click="BtnEngineRefresh_Click"/>
+                                </Grid>
+                            </GroupBox>
+
+                            <GroupBox Header="로컬 Installed Build 상태" Grid.Column="1" Margin="6,0,0,0">
+                                <Grid Margin="10">
+                                    <TextBlock x:Name="TxtEngineLocalInfo" TextWrapping="Wrap"/>
+                                </Grid>
+                            </GroupBox>
+                        </Grid>
+
+                        <!-- 작업 버튼 + 진행 -->
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button x:Name="BtnEngineDownload" Content="다운로드" Width="110" Height="28"
+                                    Click="BtnEngineDownload_Click"/>
+                            <Button x:Name="BtnEngineDownloadInstall" Content="다운로드 + 설치" Width="140" Height="28" Margin="8,0,0,0"
+                                    Click="BtnEngineDownloadInstall_Click"/>
+                            <ProgressBar x:Name="PbEngine" Width="240" Height="18" Margin="16,4,0,0"/>
+                            <TextBlock x:Name="TxtEngineProgress" Margin="8,4,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- 로그 -->
+                        <TextBox x:Name="TxtEngineLog"
+                                Grid.Row="4"
+                                IsReadOnly="True"
+                                TextWrapping="Wrap"
+                                VerticalScrollBarVisibility="Auto"
+                                HorizontalScrollBarVisibility="Auto"
+                                AcceptsReturn="True"/>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
 
             <!-- 1) Setup_p4 -->
             <TabItem Header="Setup p4">
