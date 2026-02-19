@@ -215,7 +215,6 @@
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -228,17 +227,58 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0" Orientation="Vertical" Margin="0,0,10,0">
-                            <TextBlock Text="Workspace(P4CLIENT)" />
-                            <TextBlock Text="Client Root" Margin="0,6,0,0"/>
-                            <TextBlock Text="Stream" Margin="0,6,0,0"/>
-                        </StackPanel>
+                        <Grid Grid.Column="0" Grid.ColumnSpan="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="1" Orientation="Vertical">
-                            <TextBox x:Name="TbP4SyncWorkspace" IsReadOnly="True" />
-                            <TextBox x:Name="TbP4SyncClientRoot" IsReadOnly="True" Margin="0,6,0,0"/>
-                            <TextBox x:Name="TbP4SyncStream" IsReadOnly="True" Margin="0,6,0,0"/>
-                        </StackPanel>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Workspace -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Workspace(P4CLIENT)"
+                                    VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="TbP4SyncWorkspace"
+                                    IsReadOnly="True" Height="24"/>
+
+                            <!-- Client Root -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Client Root"
+                                    VerticalAlignment="Center" Margin="0,6,10,0"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="TbP4SyncClientRoot"
+                                    IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
+
+                            <!-- Stream -->
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Stream"
+                                    VerticalAlignment="Center" Margin="0,6,10,0"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="TbP4SyncStream"
+                                    IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
+
+                            <!-- Local CL -->
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Local CL"
+                                    VerticalAlignment="Center" Margin="0,10,10,0"/>
+                            <TextBox Grid.Row="3" Grid.Column="1" x:Name="TbP4SyncLocalCL"
+                                    IsReadOnly="True" Margin="0,10,0,0" Height="24"/>
+
+                            <!-- GW_ProjectBuild CL -->
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="GW_ProjectBuild CL"
+                                    VerticalAlignment="Center" Margin="0,6,10,0"/>
+                            <TextBox Grid.Row="4" Grid.Column="1" x:Name="TbP4SyncBuildCL"
+                                    IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
+
+                            <!-- Sync 필요여부 -->
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Sync 필요여부"
+                                    VerticalAlignment="Center" Margin="0,6,10,0"/>
+                            <TextBox Grid.Row="5" Grid.Column="1" x:Name="TbP4SyncNeedSync"
+                                    IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
+                        </Grid>
+
 
                         <Button Grid.Column="2"
                                 x:Name="BtnP4SyncRefresh"
@@ -254,12 +294,6 @@
                                 Margin="8,0,0,0"
                                 Click="BtnP4SyncRun_Click"/>
                     </Grid>
-
-                    <!-- 안내 -->
-                    <TextBlock Grid.Row="1"
-                            Text="Jenkins 빌드 태그(#JenkinsBuild)가 포함된 최신 CL 기준으로 workspace를 sync 합니다."
-                            TextWrapping="Wrap"
-                            Margin="0,0,0,8"/>
 
                     <!-- 탭별 로그 -->
                     <TextBox x:Name="TxtP4SyncLog"
