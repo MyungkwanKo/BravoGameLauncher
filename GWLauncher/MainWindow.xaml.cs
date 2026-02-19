@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
@@ -131,34 +131,20 @@ namespace BravoGameLauncherGui
             await RunSelectedBuildAsync(RunMode.DedicatedServerOnly);
         }
 
-        private void AppendLog(string message)
+        /// <summary>지정한 TextBox에 로그 메시지를 추가하고 맨 아래로 스크롤합니다.</summary>
+        private void AppendToLog(System.Windows.Controls.TextBox textBox, string message)
         {
+            if (textBox == null) return;
             Dispatcher.Invoke(() =>
             {
-                TxtLog.AppendText(message + Environment.NewLine);
-                TxtLog.ScrollToEnd();
+                textBox.AppendText(message + Environment.NewLine);
+                textBox.ScrollToEnd();
             });
         }
 
-        //  Engine 탭 로그 함수
-        private void AppendEngineLog(string message)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                TxtEngineLog.AppendText(message + Environment.NewLine);
-                TxtEngineLog.ScrollToEnd();
-            });
-        }
-
-
-        private void AppendSetupP4Log(string message)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                TxtSetupP4Log.AppendText(message + Environment.NewLine);
-                TxtSetupP4Log.ScrollToEnd();
-            });
-        }           
+        private void AppendLog(string message) => AppendToLog(TxtLog, message);
+        private void AppendEngineLog(string message) => AppendToLog(TxtEngineLog, message);
+        private void AppendSetupP4Log(string message) => AppendToLog(TxtSetupP4Log, message);           
 
         private void MenuChangeCachePath_Click(object sender, RoutedEventArgs e)
         {
@@ -354,6 +340,22 @@ namespace BravoGameLauncherGui
             return "Unknown";
         }
 
+        private static ProcessStartInfo CreateProcessStartInfo(string fileName, string arguments, string? workingDirectory)
+        {
+            return new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+            };
+        }
+
         private async Task<int> RunProcessAsync(
             string fileName,
             string arguments,
@@ -362,19 +364,7 @@ namespace BravoGameLauncherGui
         {
             try
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = arguments,
-                    WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8,
-                };
-
+                var psi = CreateProcessStartInfo(fileName, arguments, workingDirectory);
                 using var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
                 proc.OutputDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) log(e.Data); };
@@ -470,48 +460,24 @@ namespace BravoGameLauncherGui
             }
         }
 
-        private void CbP4UserDeveloper_Click(object sender, RoutedEventArgs e)
+        /// <summary>P4 사용자 체크박스 단일 선택(라디오처럼 동작) 처리.</summary>
+        private void OnP4UserChecked(System.Windows.Controls.CheckBox current, System.Windows.Controls.CheckBox other1, System.Windows.Controls.CheckBox other2)
         {
-            if (CbP4UserDeveloper.IsChecked == true)
+            if (current.IsChecked == true)
             {
-                CbP4UserEngine.IsChecked = false;
-                CbP4UserGuest.IsChecked = false;
+                other1.IsChecked = false;
+                other2.IsChecked = false;
             }
             else
             {
-                // 전부 해제 방지: 항상 1개는 선택 유지
-                if (CbP4UserEngine.IsChecked != true && CbP4UserGuest.IsChecked != true)
-                    CbP4UserDeveloper.IsChecked = true;
+                if (other1.IsChecked != true && other2.IsChecked != true)
+                    current.IsChecked = true;
             }
         }
 
-        private void CbP4UserEngine_Click(object sender, RoutedEventArgs e)
-        {
-            if (CbP4UserEngine.IsChecked == true)
-            {
-                CbP4UserDeveloper.IsChecked = false;
-                CbP4UserGuest.IsChecked = false;
-            }
-            else
-            {
-                if (CbP4UserDeveloper.IsChecked != true && CbP4UserGuest.IsChecked != true)
-                    CbP4UserEngine.IsChecked = true;
-            }
-        }
-
-        private void CbP4UserGuest_Click(object sender, RoutedEventArgs e)
-        {
-            if (CbP4UserGuest.IsChecked == true)
-            {
-                CbP4UserDeveloper.IsChecked = false;
-                CbP4UserEngine.IsChecked = false;
-            }
-            else
-            {
-                if (CbP4UserDeveloper.IsChecked != true && CbP4UserEngine.IsChecked != true)
-                    CbP4UserGuest.IsChecked = true;
-            }
-        }
+        private void CbP4UserDeveloper_Click(object sender, RoutedEventArgs e) => OnP4UserChecked(CbP4UserDeveloper, CbP4UserEngine, CbP4UserGuest);
+        private void CbP4UserEngine_Click(object sender, RoutedEventArgs e) => OnP4UserChecked(CbP4UserEngine, CbP4UserDeveloper, CbP4UserGuest);
+        private void CbP4UserGuest_Click(object sender, RoutedEventArgs e) => OnP4UserChecked(CbP4UserGuest, CbP4UserDeveloper, CbP4UserEngine);
 
         private string GetSelectedP4User()
         {
@@ -524,13 +490,22 @@ namespace BravoGameLauncherGui
             return "gw_developer";
         }
 
-        private void AppendGWEditorLog(string message)
+        private void AppendGWEditorLog(string message) => AppendToLog(TxtGWEditorLog, message);
+
+        private static (string clientName, string clientRoot, string clientStream) ParseP4ZtagInfo(string stdout)
         {
-            Dispatcher.Invoke(() =>
+            string name = "", root = "", stream = "";
+            if (string.IsNullOrWhiteSpace(stdout)) return (name, root, stream);
+            foreach (var line in stdout.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
             {
-                TxtGWEditorLog.AppendText(message + Environment.NewLine);
-                TxtGWEditorLog.ScrollToEnd();
-            });
+                if (line.StartsWith("... clientName ", StringComparison.OrdinalIgnoreCase))
+                    name = line.Substring("... clientName ".Length).Trim();
+                else if (line.StartsWith("... clientRoot ", StringComparison.OrdinalIgnoreCase))
+                    root = line.Substring("... clientRoot ".Length).Trim();
+                else if (line.StartsWith("... clientStream ", StringComparison.OrdinalIgnoreCase))
+                    stream = line.Substring("... clientStream ".Length).Trim();
+            }
+            return (name, root, stream);
         }
 
         private async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessCaptureAsync(
@@ -540,19 +515,7 @@ namespace BravoGameLauncherGui
         {
             try
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = arguments,
-                    WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8,
-                };
-
+                var psi = CreateProcessStartInfo(fileName, arguments, workingDirectory);
                 using var proc = new Process { StartInfo = psi };
                 if (!proc.Start())
                     throw new InvalidOperationException("프로세스를 시작할 수 없습니다.");
@@ -595,17 +558,7 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            string ws = "";
-            string clientRoot = "";
-
-            foreach (var line in stdout.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (line.StartsWith("... clientName ", StringComparison.OrdinalIgnoreCase))
-                    ws = line.Substring("... clientName ".Length).Trim();
-                else if (line.StartsWith("... clientRoot ", StringComparison.OrdinalIgnoreCase))
-                    clientRoot = line.Substring("... clientRoot ".Length).Trim();
-            }
-
+            var (ws, clientRoot, _) = ParseP4ZtagInfo(stdout);
             TbGWEditorWorkspace.Text = ws;
 
             // Project(.uproject) 경로는 항상 P4 clientRoot 기준
@@ -791,14 +744,7 @@ namespace BravoGameLauncherGui
 
         private bool _p4SyncRefreshing = false;
 
-        private void AppendP4SyncLog(string message)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                TxtP4SyncLog.AppendText(message + Environment.NewLine);
-                TxtP4SyncLog.ScrollToEnd();
-            });
-        }
+        private void AppendP4SyncLog(string message) => AppendToLog(TxtP4SyncLog, message);
 
         private async Task RefreshP4SyncInfoAsync()
         {
@@ -823,20 +769,7 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            string ws = "";
-            string root = "";
-            string stream = "";
-
-            foreach (var line in stdout.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (line.StartsWith("... clientName ", StringComparison.OrdinalIgnoreCase))
-                    ws = line.Substring("... clientName ".Length).Trim();
-                else if (line.StartsWith("... clientRoot ", StringComparison.OrdinalIgnoreCase))
-                    root = line.Substring("... clientRoot ".Length).Trim();
-                else if (line.StartsWith("... clientStream ", StringComparison.OrdinalIgnoreCase))
-                    stream = line.Substring("... clientStream ".Length).Trim();
-            }
-
+            var (ws, root, stream) = ParseP4ZtagInfo(stdout);
             TbP4SyncWorkspace.Text = ws;
             TbP4SyncClientRoot.Text = root;
             TbP4SyncStream.Text = stream;
@@ -1040,7 +973,6 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
-                // 진행 확인(배치의 Y/N 대체) - ScriptDir 비교는 제거(요구사항)
                 var confirm = MessageBox.Show(
                     $"아래 워크스페이스 기준으로 Sync를 진행합니다.\n\nWorkspace: {ws}\nClient Root: {root}\n\n진행할까요?",
                     "p4 sync 확인",
@@ -1053,107 +985,19 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
-                const string TARGET_DEPOT = "//GW/dev/...";
-                const string JENKINS_USER = "gw_build";
-                const string JENKINS_CLIENT = "jenkins-Agent-Win-GW_ProjectBuild";
-                const string TAG = "#JenkinsBuild";
-
                 AppendP4SyncLog("=== p4 sync 시작 ===");
+                var (localCL, buildCL, needSync, status) = await QueryP4SyncClStateAsync(ws, root, writeLog: true);
 
-                // [1/4] 로컬 최신 CL
-                AppendP4SyncLog("");
-                AppendP4SyncLog("[1/4] 로컬 최신 changelist 조회 중...");
-
-                var (exitLocal, outLocal, errLocal) = await RunProcessCaptureAsync("p4", $"changes -m1 @{ws}", root);
-                if (exitLocal != 0)
+                if (!needSync || buildCL <= 0)
                 {
-                    AppendP4SyncLog($"[WARN] 로컬 최신 CL 조회 실패 (ExitCode={exitLocal}). LOCAL_CL=0 가정");
-                    if (!string.IsNullOrWhiteSpace(errLocal)) AppendP4SyncLog("[ERR] " + errLocal.Trim());
-                }
-
-                int localCL = exitLocal == 0 ? ParseChangeNumber(outLocal) : 0;
-                if (localCL < 0) localCL = 0;
-                AppendP4SyncLog($"- 로컬 최신 CL : {localCL}");
-
-                // [2/4] GW_ProjectBuild CL scan
-                AppendP4SyncLog("");
-                AppendP4SyncLog("[2/4] GW_ProjectBuild CL scan (최근 5개)...");
-
-                var (exitCandidates, outCandidates, errCandidates) =
-                    await RunProcessCaptureAsync("p4", $"changes -u {JENKINS_USER} -c {JENKINS_CLIENT} -m5 {TARGET_DEPOT}", root);
-
-                if (exitCandidates != 0)
-                {
-                    AppendP4SyncLog($"[WARN] GW_ProjectBuild CL 조회 실패 (ExitCode={exitCandidates})");
-                    if (!string.IsNullOrWhiteSpace(errCandidates)) AppendP4SyncLog("[ERR] " + errCandidates.Trim());
-                    return;
-                }
-
-                var candidateCLs = new List<int>();
-                foreach (var line in outCandidates.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
-                {
-                    int cl = ParseChangeNumber(line);
-                    if (cl > 0) candidateCLs.Add(cl);
-                }
-
-                if (candidateCLs.Count == 0)
-                {
-                    AppendP4SyncLog("[WARN] GW_ProjectBuild CL이 없습니다. sync 없이 종료합니다.");
-                    return;
-                }
-
-                int targetJenkinsCL = -1;
-
-                foreach (var cl in candidateCLs)
-                {
-                    // AppendP4SyncLog($"  [DEBUG] Candidate CL: {cl}");
-
-                    var (exitDesc, outDesc, errDesc) = await RunProcessCaptureAsync("p4", $"describe -s {cl}", root);
-                    if (exitDesc != 0)
-                    {
-                        AppendP4SyncLog($"  [WARN] GW_ProjectBuild describe 실패 (CL={cl}, ExitCode={exitDesc})");
-                        if (!string.IsNullOrWhiteSpace(errDesc)) AppendP4SyncLog("  [ERR] " + errDesc.Trim());
-                        continue;
-                    }
-
-                    if (outDesc.IndexOf(TAG, StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        // AppendP4SyncLog($"  [DEBUG] GW_ProjectBuild 태그 발견: {TAG} (CL={cl})");
-                        targetJenkinsCL = cl;
-                        break;
-                    }
-                    else
-                    {
-                        AppendP4SyncLog($"  [DEBUG] 태그 없음 (CL={cl})");
-                    }
-                }
-
-                if (targetJenkinsCL <= 0)
-                {
-                    AppendP4SyncLog("");
-                    AppendP4SyncLog($"[WARN] 최근 5개의 GW_ProjectBuild CL 중에서 태그({TAG})를 찾지 못했습니다. sync 없이 종료합니다.");
+                    if (buildCL > 0 && !needSync)
+                        AppendP4SyncLog($"[INFO] 로컬 CL({localCL})이 최신 GW_ProjectBuild CL({buildCL})보다 새롭거나 같아 sync 생략.");
                     return;
                 }
 
                 AppendP4SyncLog("");
-                AppendP4SyncLog($"[INFO] 최신 GW_ProjectBuild CL : {targetJenkinsCL}");
-
-                // [3/4] 비교
-                AppendP4SyncLog("");
-                AppendP4SyncLog("[3/4] 로컬 CL과 GW_ProjectBuild CL 비교 중...");
-
-                if (targetJenkinsCL <= localCL)
-                {
-                    AppendP4SyncLog($"[INFO] 로컬 CL({localCL})이 최신 GW_ProjectBuild CL({targetJenkinsCL})보다 새롭거나 같아 sync 생략.");
-                    return;
-                }
-
-                AppendP4SyncLog($"[INFO] 최신 GW_ProjectBuild CL({targetJenkinsCL})이 로컬 CL({localCL})보다 최신입니다. sync 진행.");
-                // [4/4] Sync
-                AppendP4SyncLog("");
-                AppendP4SyncLog($"[4/4] p4 sync ...@{targetJenkinsCL} 실행");
-
-                int code = await RunProcessAsync("p4", $"sync ...@{targetJenkinsCL}", AppendP4SyncLog, root);
+                AppendP4SyncLog($"[4/4] p4 sync ...@{buildCL} 실행");
+                int code = await RunProcessAsync("p4", $"sync ...@{buildCL}", AppendP4SyncLog, root);
                 if (code != 0)
                 {
                     AppendP4SyncLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
@@ -1161,23 +1005,18 @@ namespace BravoGameLauncherGui
                 }
 
                 AppendP4SyncLog("");
-                AppendP4SyncLog($"[OK] 로컬 워크스페이스가 최신 GW_ProjectBuild CL {targetJenkinsCL} 까지 동기화되었습니다.");
+                AppendP4SyncLog($"[OK] 로컬 워크스페이스가 최신 GW_ProjectBuild CL {buildCL} 까지 동기화되었습니다.");
                 AppendP4SyncLog("=== p4 sync 완료 ===");
             }
             finally
             {
-                // Refresh 버튼은 항상 복구
                 BtnP4SyncRefresh.IsEnabled = true;
-
-                // v8: Sync 버튼 enable/disable은 "현재 CL 상태"로 결정해야 함.
-                // (로그를 지우지 않기 위해 writeLog=false)
                 try
                 {
                     await UpdateP4SyncClUiFromCurrentAsync(writeLog: false);
                 }
                 catch
                 {
-                    // 상태 갱신 실패 시 Sync는 안전하게 비활성
                     if (BtnP4SyncRun != null) BtnP4SyncRun.IsEnabled = false;
                 }
             }
@@ -1209,11 +1048,6 @@ namespace BravoGameLauncherGui
                 await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed);
                 return;
             }
-
-            // GameOnly는 기존 로직 그대로 유지
-            // 예: await _launcher.RunAsync(winZip, useWindowed);
-            // 또는 v4에서 local+ds를 함께 띄우는 버튼이라면:
-            // await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed);
         }
 
         private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
