@@ -4,6 +4,18 @@
 (런처 + 런처 스타터)
 
 ---
+## 🆕 v8 변경 사항 요약
+
+### ✅ p4_sync 탭 개선 (#PJTGW-1329)
+- **로컬/배포빌드 CL 값 표시**: p4 sync 탭에서 **Local CL**, **GW_ProjectBuild CL**, **Sync 필요여부**를 바로 확인할 수 있도록 UI 추가
+  - Local CL: 현재 워크스페이스 최신 체인지리스트
+  - GW_ProjectBuild CL: Jenkins 빌드(#JenkinsBuild 태그) 기준 배포 빌드 CL
+  - Sync 필요여부: "동기화 필요" / "동기화 불필요" 표시
+- **Sync 버튼 조건부 활성화**: sync 할 빌드가 있을 때만(로컬 CL < 배포빌드 CL일 때만) Sync 버튼 활성화
+- 새로고침 시 위 CL/상태를 조회해 UI 갱신 후 Sync 버튼 enable/disable 결정
+- Sync 실행 후에도 CL 상태를 재조회하여 버튼 상태 갱신
+
+---
 ## 🆕 v7 변경 사항 요약
 
 ### ✅ Engine 탭 추가 (Installed Build)
@@ -129,8 +141,10 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - `p4 set` 결과 + `p4 info` 전체 로그 출력
 
 ### 🔸 p4_sync 탭
-- Workspace / Client Root 자동 표시
+- Workspace / Client Root / Stream 자동 표시
+- **로컬 CL / GW_ProjectBuild CL / Sync 필요여부** 표시 (v8)
 - Jenkins 빌드 기준 CL 탐색 (#JenkinsBuild)
+- **Sync 버튼**: sync 할 빌드가 있을 때만 활성화 (v8)
 - Jenkins 기준 CL로 p4 sync 수행
 - Sync 전 GUI 확인 후 실행
 
@@ -494,3 +508,11 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 ---
 
 필요하면 이 문서에 Jenkins 자동 배포 매뉴얼도 추가해줄 수 있어.
+
+---
+
+## 변경 이력 (Changelog)
+
+| 버전 | 날짜 | 변경 요약 |
+|------|------|-----------|
+| v8 | 2026-02-19 | p4_sync 탭: 로컬/배포빌드 CL 표시, Sync 버튼 조건부 활성화 (#PJTGW-1329, commit ce5d777) |
