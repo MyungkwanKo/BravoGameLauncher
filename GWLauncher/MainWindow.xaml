@@ -1,4 +1,4 @@
-﻿<Window x:Class="BravoGameLauncherGui.MainWindow"
+<Window x:Class="BravoGameLauncherGui.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:BravoGameLauncherGui"
@@ -272,11 +272,21 @@
                             <TextBox Grid.Row="4" Grid.Column="1" x:Name="TbP4SyncBuildCL"
                                     IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
 
-                            <!-- Sync 필요여부 -->
+                            <!-- Sync 필요여부 (색상 표시기 + 메시지, statusKind=3일 때 두 줄 표시) -->
                             <TextBlock Grid.Row="5" Grid.Column="0" Text="Sync 필요여부"
-                                    VerticalAlignment="Center" Margin="0,6,10,0"/>
-                            <TextBox Grid.Row="5" Grid.Column="1" x:Name="TbP4SyncNeedSync"
-                                    IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
+                                    VerticalAlignment="Top" Margin="0,10,10,0"/>
+                            <Grid Grid.Row="5" Grid.Column="1" Margin="0,6,0,0" MinHeight="24">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Ellipse x:Name="P4SyncStatusIndicator" Grid.Column="0" Width="12" Height="12" Margin="0,2,8,0"
+                                         VerticalAlignment="Top" Fill="Gray"/>
+                                <TextBox x:Name="TbP4SyncNeedSync" Grid.Column="1"
+                                    IsReadOnly="True" MinHeight="24" Height="40"
+                                    TextWrapping="Wrap" VerticalContentAlignment="Top"
+                                    VerticalAlignment="Stretch"/>
+                            </Grid>
                         </Grid>
 
 
@@ -314,7 +324,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 상단: WS/Root 표시 + 버튼 -->
+                    <!-- 상단: WS/Project/Editor + Sync 필요여부 + 버튼 -->
                     <Grid Grid.Row="0" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -327,12 +337,24 @@
                             <TextBlock Text="Workspace(P4CLIENT)" />
                             <TextBlock Text="Project (.uproject)" Margin="0,6,0,0"/>
                             <TextBlock Text="Editor (UnrealEditor.exe)" Margin="0,6,0,0"/>
+                            <TextBlock Text="Sync 필요여부" Margin="0,6,0,0"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Vertical">
                             <TextBox x:Name="TbGWEditorWorkspace" IsReadOnly="True" />
                             <TextBox x:Name="TbGWEditorProjectPath" IsReadOnly="True" Margin="0,6,0,0"/>
                             <TextBox x:Name="TbGWEditorEditorExe" IsReadOnly="True" Margin="0,6,0,0"/>
+                            <Grid Margin="0,6,0,0" MinHeight="24">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Ellipse x:Name="GWEditorSyncStatusIndicator" Grid.Column="0" Width="12" Height="12" Margin="0,0,8,0"
+                                         VerticalAlignment="Center" Fill="Gray"/>
+                                <TextBox x:Name="TbGWEditorSyncStatus" Grid.Column="1"
+                                    IsReadOnly="True" MinHeight="24" Height="40"
+                                    TextWrapping="Wrap" VerticalContentAlignment="Top"/>
+                            </Grid>
                         </StackPanel>
 
                         <Button Grid.Column="2"

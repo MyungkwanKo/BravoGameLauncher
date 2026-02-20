@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
@@ -555,6 +555,7 @@ namespace BravoGameLauncherGui
                 TbGWEditorWorkspace.Text = "";
                 TbGWEditorProjectPath.Text = "";
                 TbGWEditorEditorExe.Text = "";
+                SetGWEditorSyncStatus("", 0);
                 return;
             }
 
@@ -573,6 +574,30 @@ namespace BravoGameLauncherGui
             AppendGWEditorLog($"Workspace: {ws}");
             AppendGWEditorLog($"Project: {uproject}");
             AppendGWEditorLog($"Editor : {editorExe}");
+
+            // p4 sync 필요 여부: Workspace/Project/Editor 아래 텍스트 영역에 표시 (로그 아님)
+            var (localCL, buildCL, needSync, status, statusKind) = await QueryP4SyncClStateAsync(ws, clientRoot, writeLog: false);
+            SetGWEditorSyncStatus(status, statusKind);
+        }
+
+        /// <param name="statusKind">0=없음(회색), 1=동기화필요(빨강), 2=동일(초록), 3=주의(주황)</param>
+        private void SetGWEditorSyncStatus(string statusText, int statusKind)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (TbGWEditorSyncStatus != null)
+                    TbGWEditorSyncStatus.Text = statusText ?? "";
+                if (GWEditorSyncStatusIndicator != null)
+                {
+                    GWEditorSyncStatusIndicator.Fill = statusKind switch
+                    {
+                        1 => System.Windows.Media.Brushes.Crimson,
+                        2 => System.Windows.Media.Brushes.MediumSeaGreen,
+                        3 => System.Windows.Media.Brushes.Orange,
+                        _ => System.Windows.Media.Brushes.Gray
+                    };
+                }
+            });
         }
 
 
@@ -764,6 +789,7 @@ namespace BravoGameLauncherGui
                 TbP4SyncLocalCL.Text = "";
                 TbP4SyncBuildCL.Text = "";
                 TbP4SyncNeedSync.Text = "";
+                if (P4SyncStatusIndicator != null) P4SyncStatusIndicator.Fill = System.Windows.Media.Brushes.Gray;
                 if (BtnP4SyncRun != null) BtnP4SyncRun.IsEnabled = false;
 
                 return;
@@ -792,13 +818,25 @@ namespace BravoGameLauncherGui
         private const string P4SYNC_JENKINS_CLIENT = "jenkins-Agent-Win-GW_ProjectBuild";
         private const string P4SYNC_TAG            = "#JenkinsBuild";
 
-        private void SetP4SyncClUi(int localCL, int buildCL, string statusText, bool enableSync)
+        /// <param name="statusKind">0=없음(회색), 1=동기화필요(빨강), 2=동일(초록), 3=주의(주황)</param>
+        private void SetP4SyncClUi(int localCL, int buildCL, string statusText, bool enableSync, int statusKind = 0)
         {
             Dispatcher.Invoke(() =>
             {
                 if (TbP4SyncLocalCL != null)  TbP4SyncLocalCL.Text  = localCL > 0 ? localCL.ToString() : "0";
                 if (TbP4SyncBuildCL != null)  TbP4SyncBuildCL.Text  = buildCL > 0 ? buildCL.ToString() : "-";
                 if (TbP4SyncNeedSync != null) TbP4SyncNeedSync.Text = statusText ?? "";
+
+                if (P4SyncStatusIndicator != null)
+                {
+                    P4SyncStatusIndicator.Fill = statusKind switch
+                    {
+                        1 => System.Windows.Media.Brushes.Crimson,   // 동기화 필요
+                        2 => System.Windows.Media.Brushes.MediumSeaGreen, // 안정
+                        3 => System.Windows.Media.Brushes.Orange,    // 주의
+                        _ => System.Windows.Media.Brushes.Gray
+                    };
+                }
 
                 if (BtnP4SyncRun != null) BtnP4SyncRun.IsEnabled = enableSync;
             });
@@ -808,7 +846,7 @@ namespace BravoGameLauncherGui
         /// Run 버튼에서 쓰는 방식 그대로: local 최신 CL 조회 + GW_ProjectBuild CL 조회/태그 스캔 + 비교.
         /// 단, 여기서는 "sync 실행"은 하지 않고 "표시/판단"만 한다.
         /// </summary>
-        private async Task<(int localCL, int buildCL, bool needSync, string status)> QueryP4SyncClStateAsync(
+        private async Task<(int localCL, int buildCL, bool needSync, string status, int statusKind)> QueryP4SyncClStateAsync(
             string ws, string root, bool writeLog)
         {
             void Log(string msg)
@@ -817,7 +855,7 @@ namespace BravoGameLauncherGui
             }
 
             if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
-                return (0, -1, false, "Workspace/Client Root 확인 불가");
+                return (0, -1, false, "Workspace/Client Root 확인 불가", 0);
 
             // [1] 로컬 최신 CL
             Log("");
@@ -848,7 +886,7 @@ namespace BravoGameLauncherGui
             {
                 Log($"[WARN] GW_ProjectBuild CL 조회 실패 (ExitCode={exitCandidates})");
                 if (!string.IsNullOrWhiteSpace(errCandidates)) Log("[ERR] " + errCandidates.Trim());
-                return (localCL, -1, false, "GW_ProjectBuild CL 조회 실패");
+                return (localCL, -1, false, "GW_ProjectBuild CL 조회 실패", 0);
             }
 
             var candidateCLs = new List<int>();
@@ -861,7 +899,7 @@ namespace BravoGameLauncherGui
             if (candidateCLs.Count == 0)
             {
                 Log("[WARN] GW_ProjectBuild CL이 없습니다.");
-                return (localCL, -1, false, "GW_ProjectBuild CL 없음");
+                return (localCL, -1, false, "GW_ProjectBuild CL 없음", 0);
             }
 
             int buildCL = -1;
@@ -890,17 +928,33 @@ namespace BravoGameLauncherGui
             if (buildCL <= 0)
             {
                 Log($"[WARN] 최근 5개 CL에서 태그({P4SYNC_TAG})를 찾지 못했습니다.");
-                return (localCL, -1, false, "태그 탐지 실패");
+                return (localCL, -1, false, "태그 탐지 실패", 0);
             }
 
             Log($"[INFO] GW_ProjectBuild CL: {buildCL}");
 
-            // [3] 비교
+            // [3] 비교 (statusKind: 1=동기화필요, 2=동일, 3=주의)
             bool needSync = buildCL > localCL;
-            string status = needSync ? "동기화 필요" : "동기화 불필요";
+            string status;
+            int statusKind;
+            if (needSync)
+            {
+                status = "배포된 프로젝트 빌드가 있습니다. 동기화 필요 합니다.";
+                statusKind = 1;
+            }
+            else if (buildCL == localCL)
+            {
+                status = "안정된 CL 상태입니다. 동기화 필요 없습니다.";
+                statusKind = 2;
+            }
+            else
+            {
+                status = "최신 프로젝트 빌드이나 불안정 CL 상태입니다.\nEditor 실행 시 문제가 발생할 수 있습니다.";
+                statusKind = 3;
+            }
 
             Log($"[INFO] 비교 결과: {status} (Local={localCL}, Build={buildCL})");
-            return (localCL, buildCL, needSync, status);
+            return (localCL, buildCL, needSync, status, statusKind);
         }
 
         private async Task UpdateP4SyncClUiFromCurrentAsync(bool writeLog)
@@ -908,13 +962,13 @@ namespace BravoGameLauncherGui
             string ws = (TbP4SyncWorkspace.Text ?? "").Trim();
             string root = (TbP4SyncClientRoot.Text ?? "").Trim();
 
-            var (localCL, buildCL, needSync, status) = await QueryP4SyncClStateAsync(ws, root, writeLog);
+            var (localCL, buildCL, needSync, status, statusKind) = await QueryP4SyncClStateAsync(ws, root, writeLog);
 
             // buildCL이 -1이면 조회 실패/태그 실패 등 -> sync 비활성
             bool enableSync = needSync && buildCL > 0;
 
             // 표시: buildCL 실패 시 "-"로 보이게( SetP4SyncClUi에서 처리 )
-            SetP4SyncClUi(localCL, buildCL, status, enableSync);
+            SetP4SyncClUi(localCL, buildCL, status, enableSync, statusKind);
         }
 
         private async void BtnP4SyncRefresh_Click(object sender, RoutedEventArgs e)
@@ -986,7 +1040,7 @@ namespace BravoGameLauncherGui
                 }
 
                 AppendP4SyncLog("=== p4 sync 시작 ===");
-                var (localCL, buildCL, needSync, status) = await QueryP4SyncClStateAsync(ws, root, writeLog: true);
+                var (localCL, buildCL, needSync, status, _) = await QueryP4SyncClStateAsync(ws, root, writeLog: true);
 
                 if (!needSync || buildCL <= 0)
                 {
