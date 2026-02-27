@@ -321,6 +321,7 @@
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -372,9 +373,16 @@
                                 Click="BtnRunGWEditor_Click"/>
                     </Grid>
 
+                    <!-- 실행 옵션 (에디터 실행 인자) -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="TbGWEditorArgs" Height="24" VerticalContentAlignment="Center"
+                                 Text="-nocompile -ddc=noshared" MinWidth="280"/>
+                    </StackPanel>
+
                     <!-- 탭별 로그 -->
                     <TextBox x:Name="TxtGWEditorLog"
-                            Grid.Row="1"
+                            Grid.Row="2"
                             IsReadOnly="True"
                             TextWrapping="Wrap"
                             VerticalScrollBarVisibility="Auto"
@@ -388,6 +396,7 @@
             <TabItem Header="GameStarter">
                 <Grid Margin="0">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -440,12 +449,20 @@
 
                     <!-- 다운로드/설치 진행율 (Engine 탭과 동일한 방식) -->
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,0,10,4">
+                        <TextBlock Text="진행율:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ProgressBar x:Name="PbGameStarter" Width="240" Height="18" Margin="0,0,8,0"/>
                         <TextBlock x:Name="TxtGameStarterProgress" VerticalAlignment="Center" MinWidth="120"/>
                     </StackPanel>
 
+                    <!-- 실행 옵션 (게임 실행 인자) -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10,0,10,4">
+                        <TextBlock Text="실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="TbGameStarterArgs" Height="24" VerticalContentAlignment="Center"
+                                 Text="-log -LogCmds=&quot;Global Verbose&quot;" MinWidth="320"/>
+                    </StackPanel>
+
                     <!-- 캐시 경로 -->
-                    <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="10,0,10,4">
+                    <StackPanel Orientation="Horizontal" Grid.Row="3" Margin="10,0,10,4">
                         <TextBlock Text="로컬 캐시 경로:" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock x:Name="TxtCachePath"
                                    VerticalAlignment="Center"
@@ -454,7 +471,7 @@
 
                     <!-- 빌드 리스트: 체크박스 선택 컬럼 + v2 최종 컬럼 -->
                     <ListView x:Name="LvBuilds"
-                              Grid.Row="3"
+                              Grid.Row="4"
                               Margin="10,0,10,4"
                               SelectionMode="Single">
                         <ListView.View>
@@ -500,7 +517,7 @@
 
                     <!-- 로그: GameStarter -->
                     <TextBox x:Name="TxtLog"
-                             Grid.Row="4"
+                             Grid.Row="5"
                              Margin="10,0,10,10"
                              IsReadOnly="True"
                              TextWrapping="Wrap"
