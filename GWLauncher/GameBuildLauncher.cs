@@ -455,7 +455,8 @@ namespace BravoGameLauncherGui
             string clientZipFileName,
             string dsZipFileName,
             bool useWindowed,
-            Action<double, string?>? progress = null)
+            Action<double, string?>? progress = null,
+            string? clientArgsOverride = null)
         {
             // ✅ 0) DS가 실행 중이면 먼저 종료 (압축해제/삭제 전에!)
             KillRunningDedicatedServer();
@@ -489,8 +490,8 @@ namespace BravoGameLauncherGui
             // 3) DS 실행 (커맨드 고정)
             StartDedicatedServer(dsUnpackDir);
 
-            // 4) Client 실행 (DS 실행 후)
-            string clientArgs = "-log -LogCmds=\"Global Verbose\"";
+            // 4) Client 실행 (DS 실행 후, 실행 옵션은 호출측에서 전달 또는 기본값)
+            string clientArgs = !string.IsNullOrWhiteSpace(clientArgsOverride) ? clientArgsOverride.Trim() : "-log -LogCmds=\"Global Verbose\"";
             if (useWindowed)
                 clientArgs += " -windowed -ResX=1920 -ResY=1080";
 
