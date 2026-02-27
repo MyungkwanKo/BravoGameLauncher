@@ -639,7 +639,7 @@ namespace BravoGameLauncherGui
             }
 
             string opts = (TbGWEditorArgs?.Text ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(opts)) opts = "-nocompile -ddc=noshared";
+            if (string.IsNullOrWhiteSpace(opts)) opts = DefaultGWEditorArgs;
             string args = $"\"{uproject}\" {opts}";
 
             AppendGWEditorLog("=== UnrealEditor 실행 요청 ===");
@@ -670,6 +670,18 @@ namespace BravoGameLauncherGui
             }
         }
 
+        private const string DefaultGWEditorArgs = "-nocompile -ddc=noshared";
+        private const string DefaultGameStarterArgs = "-log -LogCmds=\"Global Verbose\"";
+
+        private void BtnGWEditorArgsReset_Click(object sender, RoutedEventArgs e)
+        {
+            TbGWEditorArgs.Text = DefaultGWEditorArgs;
+        }
+
+        private void BtnGameStarterArgsReset_Click(object sender, RoutedEventArgs e)
+        {
+            TbGameStarterArgs.Text = DefaultGameStarterArgs;
+        }
 
         private bool _gwEditorRefreshing = false;
 
@@ -1107,7 +1119,7 @@ namespace BravoGameLauncherGui
                 if (mode == RunMode.GameOnly)
                 {
                     string clientArgs = (TbGameStarterArgs?.Text ?? "").Trim();
-                    if (string.IsNullOrWhiteSpace(clientArgs)) clientArgs = "-log -LogCmds=\"Global Verbose\"";
+                    if (string.IsNullOrWhiteSpace(clientArgs)) clientArgs = DefaultGameStarterArgs;
                     await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed, ReportGameStarterProgress, clientArgs);
                     return;
                 }

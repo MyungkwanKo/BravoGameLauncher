@@ -378,6 +378,8 @@
                         <TextBlock Text="실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="TbGWEditorArgs" Height="24" VerticalContentAlignment="Center"
                                  Text="-nocompile -ddc=noshared" MinWidth="280"/>
+                        <Button x:Name="BtnGWEditorArgsReset" Content="Reset" Width="60" Height="24" Margin="8,0,0,0"
+                                Click="BtnGWEditorArgsReset_Click"/>
                     </StackPanel>
 
                     <!-- 탭별 로그 -->
@@ -459,6 +461,8 @@
                         <TextBlock Text="실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="TbGameStarterArgs" Height="24" VerticalContentAlignment="Center"
                                  Text="-log -LogCmds=&quot;Global Verbose&quot;" MinWidth="320"/>
+                        <Button x:Name="BtnGameStarterArgsReset" Content="Reset" Width="60" Height="24" Margin="8,0,0,0"
+                                Click="BtnGameStarterArgsReset_Click"/>
                     </StackPanel>
 
                     <!-- 캐시 경로 -->
