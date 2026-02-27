@@ -1086,22 +1086,64 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            // 빌드 목록은 WIN zip 기준이라고 가정
-            bool useWindowed = CbWindowed.IsChecked == true;
-            string winZip = selected.FileName; // 네 프로젝트 실제 프로퍼티명에 맞춰 유지
-            string dsZip  = Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
+            // 게임 실행 전까지 버튼 비활성화 (중복 실행 방지)
+            BtnRun.IsEnabled = false;
+            BtnRunDS.IsEnabled = false;
 
-            if (mode == RunMode.DedicatedServerOnly)
+            try
             {
-                await _launcher.RunDedicatedServerAsync(dsZip);
-                return;
-            }
+                bool useWindowed = CbWindowed.IsChecked == true;
+                string winZip = selected.FileName;
+                string dsZip  = Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
 
-            if (mode == RunMode.GameOnly)
-            {
-                await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed);
-                return;
+                if (mode == RunMode.DedicatedServerOnly)
+                {
+                    await _launcher.RunDedicatedServerAsync(dsZip, ReportGameStarterProgress);
+                    return;
+                }
+
+                if (mode == RunMode.GameOnly)
+                {
+                    await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed, ReportGameStarterProgress);
+                    return;
+                }
             }
+            finally
+            {
+                BtnRun.IsEnabled = true;
+                BtnRunDS.IsEnabled = true;
+                SetGameStarterProgress(false, 0, null);
+            }
+        }
+
+        /// <summary>Engine 탭과 동일한 방식으로 GameStarter 진행율 표시.</summary>
+        private void ReportGameStarterProgress(double percent, string? message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (PbGameStarter != null)
+                {
+                    PbGameStarter.IsIndeterminate = double.IsNaN(percent) || percent < 0;
+                    if (!PbGameStarter.IsIndeterminate)
+                        PbGameStarter.Value = Math.Min(100, Math.Max(0, percent));
+                }
+                if (TxtGameStarterProgress != null)
+                    TxtGameStarterProgress.Text = message ?? "";
+            });
+        }
+
+        private void SetGameStarterProgress(bool indeterminate, double value, string? text)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (PbGameStarter != null)
+                {
+                    PbGameStarter.IsIndeterminate = indeterminate;
+                    PbGameStarter.Value = value;
+                }
+                if (TxtGameStarterProgress != null)
+                    TxtGameStarterProgress.Text = text ?? "";
+            });
         }
 
         private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)

@@ -112,7 +112,7 @@ namespace BravoGameLauncherGui
             }
 
             // ✅ Local 실행에서도 address 인자 제거: -log (+ windowed 옵션)만 전달
-            string args = "-log";
+            string args = "-log -LogCmds=\"Global Verbose\"";
 
             if (useWindowed)
             {
@@ -310,7 +310,7 @@ namespace BravoGameLauncherGui
             Directory.CreateDirectory(RootDownloadDir);
         }
 
-        public async Task RunDedicatedServerAsync(string dsZipFileName)
+        public async Task RunDedicatedServerAsync(string dsZipFileName, Action<double, string?>? progress = null)
         {
             // ✅ v5: DS만 실행에서도 기존 DS가 떠 있으면 종료
             KillRunningDedicatedServer();
@@ -321,63 +321,24 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            var (version, _, _) = ParseBuildInfoFromFileName(dsZipFileName);
-            if (string.IsNullOrWhiteSpace(version))
-            {
-                _log("[ERROR] DS 파일명에서 버전 정보를 파싱하지 못했습니다.");
-                return;
-            }
-
-            string buildName = Path.GetFileNameWithoutExtension(dsZipFileName);
-            string downloadUrl = $"{BuildServerBaseUrl}/{version}/DS/{dsZipFileName}";
-
-            _log("[INFO] Dedicated Server 실행 준비");
-            _log($"       Version : {version}");
-            _log($"       File    : {dsZipFileName}");
-            _log($"       URL     : {downloadUrl}");
-
-            // 캐시 구조 동일
-            string versionDir = Path.Combine(RootDownloadDir, version);
-            string buildDir   = Path.Combine(versionDir, buildName);
-            string zipPath    = Path.Combine(buildDir, "build.zip");
-            string unpackDir  = Path.Combine(buildDir, "unpacked");
-
-            Directory.CreateDirectory(buildDir);
-
-            // 1️⃣ ZIP 다운로드
-            if (!File.Exists(zipPath))
-            {
-                _log("[INFO] DS ZIP 다운로드 시작...");
-
-                using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-
-                await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                await response.Content.CopyToAsync(fs);
-
-                _log("[INFO] DS ZIP 다운로드 완료.");
-            }
-            else
-            {
-                _log("[INFO] 캐시된 DS ZIP 파일 사용.");
-            }
-
-            // 2️⃣ 압축 해제
-            if (Directory.Exists(unpackDir))
-            {
-                _log("[INFO] 기존 DS unpacked 폴더 삭제.");
-                Directory.Delete(unpackDir, recursive: true);
-            }
-
-            _log("[INFO] DS ZIP 압축 해제 중...");
-            ZipFile.ExtractToDirectory(zipPath, unpackDir);
-            _log("[INFO] DS 압축 해제 완료.");
-
-            // 3️⃣ GWServer.exe 탐색
-            StartDedicatedServer(unpackDir);
+            string dsUnpackDir = await DownloadAndExtractWithProgressAsync(dsZipFileName, "DS", progress, 0, 100);
+            progress?.Invoke(-1, "DS 실행 중...");
+            StartDedicatedServer(dsUnpackDir);
         }
 
+        /// <summary>진행률 콜백 없이 다운로드+압축해제 (기존 호환).</summary>
         private async Task<string> DownloadAndExtractAsync(string zipFileName, string platform)
+        {
+            return await DownloadAndExtractWithProgressAsync(zipFileName, platform, null, 0, 100);
+        }
+
+        /// <summary>진행률을 progress(0~100 또는 -1=비결정)로 보고하며 다운로드 후 압축 해제. progressStart~progressEnd 구간에 매핑.</summary>
+        private async Task<string> DownloadAndExtractWithProgressAsync(
+            string zipFileName,
+            string platform,
+            Action<double, string?>? progress,
+            double progressStart,
+            double progressEnd)
         {
             if (string.IsNullOrWhiteSpace(zipFileName))
                 throw new ArgumentException("zip 파일명이 비어 있습니다.", nameof(zipFileName));
@@ -392,7 +353,6 @@ namespace BravoGameLauncherGui
             string buildName = Path.GetFileNameWithoutExtension(zipFileName);
             string downloadUrl = $"{BuildServerBaseUrl}/{version}/{platform}/{zipFileName}";
 
-            // 캐시 구조: {Root}/{version}/{buildName}/build.zip + unpacked/
             string versionDir = Path.Combine(RootDownloadDir, version);
             string buildDir   = Path.Combine(versionDir, buildName);
             string zipPath    = Path.Combine(buildDir, "build.zip");
@@ -400,35 +360,61 @@ namespace BravoGameLauncherGui
 
             Directory.CreateDirectory(buildDir);
 
-            // ZIP 다운로드
+            double MapProgress(double pct)
+            {
+                if (pct < 0) return -1;
+                return progressStart + (progressEnd - progressStart) * Math.Min(100, pct) / 100.0;
+            }
+
+            // ZIP 다운로드 (진행률 지원)
             if (!File.Exists(zipPath))
             {
                 _log($"[INFO] ({platform}) ZIP 다운로드 시작...");
                 _log($"       URL: {downloadUrl}");
+                progress?.Invoke(MapProgress(0), $"{platform} 다운로드 0%");
 
                 using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
 
-                await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                await response.Content.CopyToAsync(fs);
+                long? total = response.Content.Headers.ContentLength;
+                await using var httpStream = await response.Content.ReadAsStreamAsync();
+                await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
 
+                byte[] buffer = new byte[1024 * 1024];
+                long readTotal = 0;
+                int read;
+                while ((read = await httpStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    await fs.WriteAsync(buffer, 0, read);
+                    readTotal += read;
+                    if (total > 0 && progress != null)
+                    {
+                        double pct = (double)readTotal / total.Value * 100.0;
+                        progress(MapProgress(Math.Min(100, pct)), $"{platform} 다운로드 {pct:0}%");
+                    }
+                }
+
+                progress?.Invoke(MapProgress(100), $"{platform} 다운로드 완료");
                 _log($"[INFO] ({platform}) ZIP 다운로드 완료.");
             }
             else
             {
                 _log($"[INFO] ({platform}) 캐시된 ZIP 파일 사용.");
+                progress?.Invoke(MapProgress(100), $"{platform} 캐시 사용");
             }
 
-            // 압축 해제 (항상 새로)
+            // 압축 해제
             if (Directory.Exists(unpackDir))
             {
                 _log($"[INFO] ({platform}) 기존 unpacked 폴더 삭제.");
                 Directory.Delete(unpackDir, recursive: true);
             }
 
+            progress?.Invoke(-1, $"{platform} 압축 해제 중...");
             _log($"[INFO] ({platform}) ZIP 압축 해제 중...");
             ZipFile.ExtractToDirectory(zipPath, unpackDir);
             _log($"[INFO] ({platform}) 압축 해제 완료.");
+            progress?.Invoke(progressEnd, $"{platform} 압축 해제 완료");
 
             return unpackDir;
         }
@@ -468,21 +454,20 @@ namespace BravoGameLauncherGui
         public async Task RunLocalWithDedicatedServerAsync(
             string clientZipFileName,
             string dsZipFileName,
-            bool useWindowed)
+            bool useWindowed,
+            Action<double, string?>? progress = null)
         {
             // ✅ 0) DS가 실행 중이면 먼저 종료 (압축해제/삭제 전에!)
             KillRunningDedicatedServer();
 
-            // 1) Client(WIN) + DS(DS) 다운로드/압축해제 병렬
-            _log("[INFO] Local 실행: Client/DS 준비 병렬 시작");
+            // 1) Client(WIN) → DS(DS) 순차 다운로드/압축해제 (진행률 0-50%, 50-100%)
+            _log("[INFO] Local 실행: Client/DS 준비 시작");
 
-            var clientTask = DownloadAndExtractAsync(clientZipFileName, "WIN");
-            var dsTask     = DownloadAndExtractAsync(dsZipFileName, "DS");
+            progress?.Invoke(-1, "Client 다운로드 준비...");
+            string clientUnpackDir = await DownloadAndExtractWithProgressAsync(clientZipFileName, "WIN", progress, 0, 50);
 
-            await Task.WhenAll(clientTask, dsTask);
-
-            string clientUnpackDir = clientTask.Result;
-            string dsUnpackDir     = dsTask.Result;
+            progress?.Invoke(-1, "DS 다운로드 준비...");
+            string dsUnpackDir = await DownloadAndExtractWithProgressAsync(dsZipFileName, "DS", progress, 50, 100);
 
             // 2) 실행 파일 탐색
             string? dsExePath = FindExecutable(dsUnpackDir, "GWServer.exe");
@@ -499,11 +484,13 @@ namespace BravoGameLauncherGui
                 return;
             }
 
+            progress?.Invoke(-1, "게임 실행 중...");
+
             // 3) DS 실행 (커맨드 고정)
             StartDedicatedServer(dsUnpackDir);
 
             // 4) Client 실행 (DS 실행 후)
-            string clientArgs = "-log";
+            string clientArgs = "-log -LogCmds=\"Global Verbose\"";
             if (useWindowed)
                 clientArgs += " -windowed -ResX=1920 -ResY=1080";
 
