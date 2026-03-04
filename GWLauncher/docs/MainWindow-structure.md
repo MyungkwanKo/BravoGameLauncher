@@ -37,9 +37,8 @@
 
 | 메서드 | 기능 |
 |--------|------|
-| `BtnRun_Click` | 선택 빌드로 **게임만** 실행. `RunSelectedBuildAsync(RunMode.GameOnly)` 호출. |
-| `BtnRunDS_Click` | 선택 빌드로 **전용 서버만** 실행. `RunSelectedBuildAsync(RunMode.DedicatedServerOnly)` 호출. |
-| `RunSelectedBuildAsync(RunMode mode)` | 리스트에서 선택된 `ServerBuildItem` 기준으로 WIN zip·DS zip 결정 후, 모드에 따라 `_launcher.RunLocalWithDedicatedServerAsync` 또는 `RunDedicatedServerAsync` 호출. |
+| `BtnRun_Click` | 클라이언트/DS 체크박스에 따라 **게임 실행**. `RunSelectedBuildAsync()` 호출. 둘 다 미선택 시 경고. |
+| `RunSelectedBuildAsync()` | 리스트에서 선택된 `ServerBuildItem` 기준으로, `CbRunClient`/`CbRunDS`에 따라 클라이언트만 / DS만 / 둘 다 실행 (`RunLocalClientOnlyAsync` / `RunDedicatedServerAsync` / `RunLocalWithDedicatedServerAsync`). |
 
 ---
 
@@ -56,13 +55,13 @@
 
 ---
 
-### 2.5 메뉴 (캐시·종료)
+### 2.5 메뉴·캐시 (GameStarter)
 
 | 메서드 | 기능 |
 |--------|------|
-| `MenuChangeCachePath_Click` | 폴더 선택 다이얼로그로 캐시 경로 변경 후 설정 저장·런처 경로 갱신·UI 반영. |
-| `MenuClearCache_Click` | 확인 후 캐시 폴더 전체 삭제. |
-| `MenuExit_Click` | 창 닫기. |
+| `MenuExit_Click` | 상단 메뉴 [파일] → [종료]: 창 닫기. |
+| `MenuChangeCachePath_Click` | GameStarter 탭 [캐시 경로 변경] 버튼: 폴더 선택 다이얼로그로 캐시 경로 변경 후 설정 저장·런처 경로 갱신·UI 반영. |
+| `MenuClearCache_Click` | GameStarter 탭 [캐시 삭제] 버튼: 확인 후 캐시 폴더 전체 삭제. |
 
 ---
 

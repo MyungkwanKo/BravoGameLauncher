@@ -22,10 +22,7 @@
 
             <!-- 상단 메뉴 (공통) -->
             <Menu Grid.Row="0">
-                <MenuItem Header="옵션(_O)">
-                    <MenuItem Header="캐시 경로 변경..." Click="MenuChangeCachePath_Click" />
-                    <MenuItem Header="캐시 전체 삭제..." Click="MenuClearCache_Click" />
-                    <Separator />
+                <MenuItem Header="파일(_F)">
                     <MenuItem Header="종료(_X)" Click="MenuExit_Click" />
                 </MenuItem>
             </Menu>
@@ -377,7 +374,7 @@
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="TbGWEditorArgs" Height="24" VerticalContentAlignment="Center"
-                                 Text="-nocompile -ddc=noshared" MinWidth="280"/>
+                                 Text="-nocompile" MinWidth="280"/>
                         <Button x:Name="BtnGWEditorArgsReset" Content="Reset" Width="60" Height="24" Margin="8,0,0,0"
                                 Click="BtnGWEditorArgsReset_Click"/>
                     </StackPanel>
@@ -441,12 +438,16 @@
                                 VerticalAlignment="Center"
                                 Margin="4,0,4,0" />
 
-                        <!-- DS만 실행 -->
-                        <Button x:Name="BtnRunDS"
-                                Content="DS만 실행"
-                                Width="90"
-                                Margin="0,0,8,0"
-                                Click="BtnRunDS_Click" />
+                        <!-- 실행 대상: 클라이언트 / DS -->
+                        <CheckBox x:Name="CbRunClient"
+                                  Content="클라이언트"
+                                  IsChecked="True"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,8,0" />
+                        <CheckBox x:Name="CbRunDS"
+                                  Content="DS"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,8,0" />
                     </StackPanel>
 
                     <!-- 다운로드/설치 진행율 (Engine 탭과 동일한 방식) -->
@@ -471,6 +472,10 @@
                         <TextBlock x:Name="TxtCachePath"
                                    VerticalAlignment="Center"
                                    TextWrapping="Wrap" />
+                        <Button x:Name="BtnChangeCachePath" Content="캐시 경로 변경" Width="120" Height="24" Margin="12,0,0,0"
+                                Click="MenuChangeCachePath_Click"/>
+                        <Button x:Name="BtnClearCache" Content="캐시 삭제" Width="90" Height="24" Margin="8,0,0,0"
+                                Click="MenuClearCache_Click"/>
                     </StackPanel>
 
                     <!-- 빌드 리스트: 체크박스 선택 컬럼 + v2 최종 컬럼 -->

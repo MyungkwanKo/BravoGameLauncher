@@ -123,12 +123,7 @@ namespace BravoGameLauncherGui
 
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
-            await RunSelectedBuildAsync(RunMode.GameOnly);
-        }
-
-        private async void BtnRunDS_Click(object sender, RoutedEventArgs e)
-        {
-            await RunSelectedBuildAsync(RunMode.DedicatedServerOnly);
+            await RunSelectedBuildAsync();
         }
 
         /// <summary>지정한 TextBox에 로그 메시지를 추가하고 맨 아래로 스크롤합니다.</summary>
@@ -670,7 +665,7 @@ namespace BravoGameLauncherGui
             }
         }
 
-        private const string DefaultGWEditorArgs = "-nocompile -ddc=noshared";
+        private const string DefaultGWEditorArgs = "-nocompile";
         private const string DefaultGameStarterArgs = "-log -LogCmds=\"Global Verbose\"";
 
         private void BtnGWEditorArgsReset_Click(object sender, RoutedEventArgs e)
@@ -1090,9 +1085,7 @@ namespace BravoGameLauncherGui
             }
         }
 
-        private enum RunMode { GameOnly, DedicatedServerOnly }
-
-        private async Task RunSelectedBuildAsync(RunMode mode)
+        private async Task RunSelectedBuildAsync()
         {
             if (LvBuilds.SelectedItem is not ServerBuildItem selected)
             {
@@ -1100,34 +1093,43 @@ namespace BravoGameLauncherGui
                 return;
             }
 
+            bool runClient = CbRunClient.IsChecked == true;
+            bool runDS = CbRunDS.IsChecked == true;
+
+            if (!runClient && !runDS)
+            {
+                AppendLog("[WARN] 클라이언트 또는 DS 중 하나 이상을 선택한 뒤 게임 실행을 눌러주세요.");
+                MessageBox.Show("클라이언트 또는 DS 중 하나 이상을 선택한 뒤 실행해주세요.", "실행 대상 선택", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             // 게임 실행 전까지 버튼 비활성화 (중복 실행 방지)
             BtnRun.IsEnabled = false;
-            BtnRunDS.IsEnabled = false;
 
             try
             {
                 bool useWindowed = CbWindowed.IsChecked == true;
                 string winZip = selected.FileName;
-                string dsZip  = Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
+                string dsZip = Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
+                string clientArgs = (TbGameStarterArgs?.Text ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(clientArgs)) clientArgs = DefaultGameStarterArgs;
 
-                if (mode == RunMode.DedicatedServerOnly)
+                if (runClient && runDS)
+                {
+                    await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed, ReportGameStarterProgress, clientArgs);
+                }
+                else if (runClient)
+                {
+                    await _launcher.RunLocalClientOnlyAsync(winZip, useWindowed, ReportGameStarterProgress, clientArgs);
+                }
+                else
                 {
                     await _launcher.RunDedicatedServerAsync(dsZip, ReportGameStarterProgress);
-                    return;
-                }
-
-                if (mode == RunMode.GameOnly)
-                {
-                    string clientArgs = (TbGameStarterArgs?.Text ?? "").Trim();
-                    if (string.IsNullOrWhiteSpace(clientArgs)) clientArgs = DefaultGameStarterArgs;
-                    await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed, ReportGameStarterProgress, clientArgs);
-                    return;
                 }
             }
             finally
             {
                 BtnRun.IsEnabled = true;
-                BtnRunDS.IsEnabled = true;
                 SetGameStarterProgress(false, 0, null);
             }
         }

@@ -326,6 +326,45 @@ namespace BravoGameLauncherGui
             StartDedicatedServer(dsUnpackDir);
         }
 
+        /// <summary>클라이언트만 다운로드 후 실행 (DS 없음).</summary>
+        public async Task RunLocalClientOnlyAsync(
+            string clientZipFileName,
+            bool useWindowed,
+            Action<double, string?>? progress = null,
+            string? clientArgsOverride = null)
+        {
+            if (string.IsNullOrWhiteSpace(clientZipFileName))
+            {
+                _log("[ERROR] Client ZIP 파일명이 비어 있습니다.");
+                return;
+            }
+
+            _log("[INFO] Client만 실행: 다운로드/압축해제 시작");
+            progress?.Invoke(-1, "Client 다운로드 준비...");
+            string clientUnpackDir = await DownloadAndExtractWithProgressAsync(clientZipFileName, "WIN", progress, 0, 100);
+
+            string? clientExePath = FindExecutable(clientUnpackDir, "GW.exe");
+            if (string.IsNullOrWhiteSpace(clientExePath) || !File.Exists(clientExePath))
+            {
+                _log("[ERROR] Client 실행 파일(GW.exe)을 찾지 못했습니다.");
+                return;
+            }
+
+            progress?.Invoke(-1, "게임 실행 중...");
+            string clientArgs = !string.IsNullOrWhiteSpace(clientArgsOverride) ? clientArgsOverride.Trim() : "-log -LogCmds=\"Global Verbose\"";
+            if (useWindowed)
+                clientArgs += " -windowed -ResX=1920 -ResY=1080";
+
+            _log($"[INFO] Client 실행: {clientExePath} {clientArgs}");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName         = clientExePath,
+                Arguments        = clientArgs,
+                WorkingDirectory = Path.GetDirectoryName(clientExePath) ?? clientUnpackDir,
+                UseShellExecute  = false
+            });
+        }
+
         /// <summary>진행률 콜백 없이 다운로드+압축해제 (기존 호환).</summary>
         private async Task<string> DownloadAndExtractAsync(string zipFileName, string platform)
         {
@@ -403,7 +442,15 @@ namespace BravoGameLauncherGui
                 progress?.Invoke(MapProgress(100), $"{platform} 캐시 사용");
             }
 
-            // 압축 해제
+            // unpacked 폴더가 이미 있으면 삭제/언팩 없이 바로 사용 (실행 시간 단축)
+            if (Directory.Exists(unpackDir) && Directory.GetFileSystemEntries(unpackDir).Length > 0)
+            {
+                _log($"[INFO] ({platform}) 기존 unpacked 폴더 사용 → 바로 실행");
+                progress?.Invoke(progressEnd, $"{platform} 캐시 사용");
+                return unpackDir;
+            }
+
+            // 압축 해제 (unpacked 없거나 비어 있을 때만)
             if (Directory.Exists(unpackDir))
             {
                 _log($"[INFO] ({platform}) 기존 unpacked 폴더 삭제.");
