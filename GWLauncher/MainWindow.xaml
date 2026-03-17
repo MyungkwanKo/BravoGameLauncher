@@ -23,6 +23,7 @@
             <!-- 상단 메뉴 (공통) -->
             <Menu Grid.Row="0">
                 <MenuItem Header="파일(_F)">
+                    <MenuItem Header="런처 저장 경로 바로가기" Click="MenuOpenLauncherFolder_Click" />
                     <MenuItem Header="종료(_X)" Click="MenuExit_Click" />
                 </MenuItem>
             </Menu>
@@ -476,6 +477,8 @@
                                 Click="MenuChangeCachePath_Click"/>
                         <Button x:Name="BtnClearCache" Content="캐시 삭제" Width="90" Height="24" Margin="8,0,0,0"
                                 Click="MenuClearCache_Click"/>
+                        <Button x:Name="BtnOpenCachePath" Content="바로가기" Width="70" Height="24" Margin="8,0,0,0"
+                                Click="BtnOpenCachePath_Click"/>
                     </StackPanel>
 
                     <!-- 빌드 리스트: 체크박스 선택 컬럼 + v2 최종 컬럼 -->

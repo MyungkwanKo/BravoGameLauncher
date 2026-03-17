@@ -196,6 +196,52 @@ namespace BravoGameLauncherGui
 
         private void MenuExit_Click(object sender, RoutedEventArgs e) => Close();
 
+        /// <summary>파일 메뉴 - 런처가 설치된 폴더를 탐색기로 연다.</summary>
+        private void MenuOpenLauncherFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string? dir = Path.GetDirectoryName(Environment.ProcessPath);
+                if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+                    dir = AppContext.BaseDirectory;
+                if (string.IsNullOrWhiteSpace(dir))
+                {
+                    MessageBox.Show("런처 실행 경로를 확인할 수 없습니다.", "경로 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = dir,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"탐색기 열기 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>GameStarter 탭 - 로컬 캐시 경로를 탐색기로 연다.</summary>
+        private void BtnOpenCachePath_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string path = _launcher.RootDownloadDir;
+                if (!Directory.Exists(path))
+                    Directory.CreateDirectory(path);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[ERROR] 캐시 경로 열기 실패: {ex.Message}");
+                MessageBox.Show($"탐색기 열기 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private async void BtnRefreshFromServer_Click(object sender, RoutedEventArgs e)
         {
             await RefreshFromServerAsync();
