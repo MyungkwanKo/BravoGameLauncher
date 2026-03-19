@@ -4,6 +4,29 @@
 (런처 + 런처 스타터)
 
 ---
+## 🆕 v13 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v13**으로 업데이트
+
+### ✅ 탭 메뉴 통합 (GWEditor)
+- **p4 sync 탭과 GWEditor 탭을 하나의 GWEditor 탭으로 통합**
+- 통합 탭에서 표시하는 항목:
+  - Workspace(P4CLIENT), Project (.uproject), Editor (UnrealEditor.exe)
+  - **Local CL**, **GW_ProjectBuild CL** (p4 sync에서 해당 2개 메뉴만 통합)
+  - **Sync 필요 여부** (상태 아이콘은 이름칸 우측, 메시지 박스는 다른 박스와 동일 너비)
+- **실행 버튼 2×2 배치** (구분선으로 메뉴 표시와 분리):
+  - 1줄: **새로고침** | **Editor실행**
+  - 2줄: **Sync** | **Local Rollback**
+- **Sync**: GW_ProjectBuild CL까지 동기화 (기존 p4 sync 탭과 동일 동작)
+- **Local Rollback**:
+  - Local CL이 GW_ProjectBuild CL보다 **클 때만** 버튼 활성화
+  - 클릭 시 로컬 워크스페이스를 GW_ProjectBuild CL 상태로 되돌림 (`p4 sync //...@buildCL`)
+  - 확인 팝업: p4 명령/Client Root 문구 제거, **"열려 있는 파일이 있으면 진행이 되지 않습니다."** 문구 추가
+- **Sync 필요 여부 메시지** (Local CL > ProjectBuild 시):
+  - "최신 프로젝트 빌드이나 Editor 실행 시 에러 발생할 수 있습니다. 문제가 발생할 경우 Local Rollback 실행하거나 #bravl_all 채널로 Project 빌드를 요청하세요"
+
+---
 ## 🆕 v12 변경 사항 요약
 
 ### ✅ 버전
@@ -123,8 +146,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 |----|----|
 | Engine | Installed Build(엔진) 다운로드/설치 (latest.json 기반) |
 | Setup_p4 | Perforce 환경 변수 설정 |
-| p4_sync | Jenkins 빌드 기준 Perforce 동기화 |
-| GWEditor | Installed Build Unreal Editor 실행 |
+| GWEditor | Unreal Editor 실행 + Local/Build CL 표시, Sync, Local Rollback (v13에서 p4_sync 통합) |
 | GameStarter | 기존 v2 게임/DS 실행 기능 |
 
 ### ✅ 용어 재정의
@@ -176,20 +198,14 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - Workspace(P4CLIENT) 사용자 직접 입력
 - `p4 set` 결과 + `p4 info` 전체 로그 출력
 
-### 🔸 p4_sync 탭
-- Workspace / Client Root / Stream 자동 표시
-- **로컬 CL / GW_ProjectBuild CL / Sync 필요여부** 표시 (v8)
-- Jenkins 빌드 기준 CL 탐색 (#JenkinsBuild)
-- **Sync 버튼**: sync 할 빌드가 있을 때만 활성화 (v8)
-- Jenkins 기준 CL로 p4 sync 수행
-- Sync 전 GUI 확인 후 실행
-
-### 🔸 GWEditor 탭
-- Client Root 기준 Unreal Editor 실행
-- 실행 파일:
-  - Engine\Binaries\Win64\UnrealEditor.exe
-  - GW\GW.uproject
-- 실행 기본 옵션: **-nocompile** (v11에서 -ddc=noshared 제거)
+### 🔸 GWEditor 탭 (v13: p4_sync 통합)
+- **메뉴 표시**: Workspace(P4CLIENT), Project (.uproject), Editor (UnrealEditor.exe), **Local CL**, **GW_ProjectBuild CL**, Sync 필요 여부 (상태 아이콘은 이름칸 우측)
+- **실행 버튼** (구분선으로 메뉴와 분리): 새로고침 | Editor실행 / Sync | Local Rollback
+- **Editor 실행**: Client Root 기준 Unreal Editor 실행
+  - Engine\Binaries\Win64\UnrealEditor.exe, GW\GW.uproject
+  - 실행 기본 옵션: **-nocompile** (v11에서 -ddc=noshared 제거)
+- **Sync**: GW_ProjectBuild CL까지 동기화 (sync 할 빌드가 있을 때만 버튼 활성화)
+- **Local Rollback**: Local CL > GW_ProjectBuild CL일 때만 활성화, 로컬을 Build CL 상태로 되돌림 (`p4 sync //...@buildCL`)
 - 탭 진입 시 자동 정보 갱신
 
 ### 🔸 GameStarter 탭
@@ -221,7 +237,7 @@ Run_GWLauncher.exe
       ↓
 GWLauncher.exe 실행
       ↓
-[Engine | Setup_p4 | p4_sync | GWEditor | GameStarter]
+[Engine | Setup_p4 | GWEditor | GameStarter]
 ```
 
 ---
@@ -257,8 +273,7 @@ dotnet publish -c Release -r win-x64 ^
 | GameStarter | 게임/DS 실행 |
 | Run_GWLauncher | 런처 스타터 |
 | Setup_p4 | Perforce 초기 설정 |
-| p4_sync | Jenkins 기준 동기화 |
-| GWEditor | Unreal Editor 실행 |
+| GWEditor | Unreal Editor 실행 + Sync / Local Rollback (v13에서 p4_sync 통합) |
 
 
 ---
@@ -555,6 +570,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v13 | 2026-03-19 | 탭 통합: p4_sync → GWEditor 통합; Local CL/Build CL 표시, Sync·Local Rollback 버튼 2×2; Sync 필요 여부 메시지·아이콘 위치·구분선 보완 |
 | v12 | 2026-03-17 | 런처 v12; GameStarter 캐시 경로 탐색기 바로가기 버튼; 파일 메뉴 런처 저장 경로 바로가기 추가 |
 | v11 | 2026-03-04 | GWEditor 기본 옵션 -ddc=noshared 제거; GameStarter 클라이언트/DS 체크박스·unpacked 재사용·캐시 버튼 탭 이전; 상단 옵션 메뉴 제거 |
 | v8 | 2026-02-19 | p4_sync 탭: 로컬/배포빌드 CL 표시, Sync 버튼 조건부 활성화 (#PJTGW-1329, commit ce5d777) |

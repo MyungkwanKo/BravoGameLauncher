@@ -46,7 +46,7 @@
         <!-- 좌측 탭 메뉴 -->
         <TabControl Grid.Row="1"
                     TabStripPlacement="Left"
-                    SelectedIndex="3"
+                    SelectedIndex="2"
                     Margin="0"
                     SelectionChanged="MainTab_SelectionChanged">
 
@@ -208,113 +208,7 @@
                 </Grid>
             </TabItem>
 
-            <!-- 2) p4_sync  -->
-            <TabItem Header="p4 sync">
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- 상단: WS/Root 표시 + 버튼 -->
-                    <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <Grid Grid.Column="0" Grid.ColumnSpan="2">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="180"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <!-- Workspace -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Workspace(P4CLIENT)"
-                                    VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="TbP4SyncWorkspace"
-                                    IsReadOnly="True" Height="24"/>
-
-                            <!-- Client Root -->
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Client Root"
-                                    VerticalAlignment="Center" Margin="0,6,10,0"/>
-                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="TbP4SyncClientRoot"
-                                    IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
-
-                            <!-- Stream -->
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Stream"
-                                    VerticalAlignment="Center" Margin="0,6,10,0"/>
-                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="TbP4SyncStream"
-                                    IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
-
-                            <!-- Local CL -->
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Local CL"
-                                    VerticalAlignment="Center" Margin="0,10,10,0"/>
-                            <TextBox Grid.Row="3" Grid.Column="1" x:Name="TbP4SyncLocalCL"
-                                    IsReadOnly="True" Margin="0,10,0,0" Height="24"/>
-
-                            <!-- GW_ProjectBuild CL -->
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="GW_ProjectBuild CL"
-                                    VerticalAlignment="Center" Margin="0,6,10,0"/>
-                            <TextBox Grid.Row="4" Grid.Column="1" x:Name="TbP4SyncBuildCL"
-                                    IsReadOnly="True" Margin="0,6,0,0" Height="24"/>
-
-                            <!-- Sync 필요여부 (색상 표시기 + 메시지, statusKind=3일 때 두 줄 표시) -->
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Sync 필요여부"
-                                    VerticalAlignment="Top" Margin="0,10,10,0"/>
-                            <Grid Grid.Row="5" Grid.Column="1" Margin="0,6,0,0" MinHeight="24">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Ellipse x:Name="P4SyncStatusIndicator" Grid.Column="0" Width="12" Height="12" Margin="0,2,8,0"
-                                         VerticalAlignment="Top" Fill="Gray"/>
-                                <TextBox x:Name="TbP4SyncNeedSync" Grid.Column="1"
-                                    IsReadOnly="True" MinHeight="24" Height="40"
-                                    TextWrapping="Wrap" VerticalContentAlignment="Top"
-                                    VerticalAlignment="Stretch"/>
-                            </Grid>
-                        </Grid>
-
-
-                        <Button Grid.Column="2"
-                                x:Name="BtnP4SyncRefresh"
-                                Content="새로고침"
-                                Width="90"
-                                Margin="10,0,0,0"
-                                Click="BtnP4SyncRefresh_Click"/>
-
-                        <Button Grid.Column="3"
-                                x:Name="BtnP4SyncRun"
-                                Content="Sync"
-                                Width="80"
-                                Margin="8,0,0,0"
-                                Click="BtnP4SyncRun_Click"/>
-                    </Grid>
-
-                    <!-- 탭별 로그 -->
-                    <TextBox x:Name="TxtP4SyncLog"
-                            Grid.Row="2"
-                            IsReadOnly="True"
-                            TextWrapping="Wrap"
-                            VerticalScrollBarVisibility="Auto"
-                            HorizontalScrollBarVisibility="Auto"
-                            AcceptsReturn="True"/>
-                </Grid>
-            </TabItem>
-
-            <!-- 3) GWEditor -->
+            <!-- 2) GWEditor (통합: p4 sync 포함) -->
             <TabItem Header="GWEditor">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
@@ -323,52 +217,71 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 상단: WS/Project/Editor + Sync 필요여부 + 버튼 -->
+                    <!-- 상단: WS/Project/Editor + Local CL/Build CL + Sync 필요여부 | 구분선 | 버튼(2x2) -->
                     <Grid Grid.Row="0" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0" Orientation="Vertical" Margin="0,0,10,0">
-                            <TextBlock Text="Workspace(P4CLIENT)" />
-                            <TextBlock Text="Project (.uproject)" Margin="0,6,0,0"/>
-                            <TextBlock Text="Editor (UnrealEditor.exe)" Margin="0,6,0,0"/>
-                            <TextBlock Text="Sync 필요여부" Margin="0,6,0,0"/>
-                        </StackPanel>
+                        <!-- 행 단위 줄맞춤: 라벨(0열) | 내용(1열) -->
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="40"/>
+                        </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Column="1" Orientation="Vertical">
-                            <TextBox x:Name="TbGWEditorWorkspace" IsReadOnly="True" />
-                            <TextBox x:Name="TbGWEditorProjectPath" IsReadOnly="True" Margin="0,6,0,0"/>
-                            <TextBox x:Name="TbGWEditorEditorExe" IsReadOnly="True" Margin="0,6,0,0"/>
-                            <Grid Margin="0,6,0,0" MinHeight="24">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Ellipse x:Name="GWEditorSyncStatusIndicator" Grid.Column="0" Width="12" Height="12" Margin="0,0,8,0"
-                                         VerticalAlignment="Center" Fill="Gray"/>
-                                <TextBox x:Name="TbGWEditorSyncStatus" Grid.Column="1"
-                                    IsReadOnly="True" MinHeight="24" Height="40"
-                                    TextWrapping="Wrap" VerticalContentAlignment="Top"/>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Workspace(P4CLIENT)" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TbGWEditorWorkspace" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Project (.uproject)" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TbGWEditorProjectPath" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Editor (UnrealEditor.exe)" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TbGWEditorEditorExe" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Local CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TbGWEditorLocalCL" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="GW_ProjectBuild CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="4" Grid.Column="1" x:Name="TbGWEditorBuildCL" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+
+                        <!-- Sync 필요여부: 이름칸에 라벨+상태 아이콘, 내용칸은 메시지만(다른 박스와 동일 너비) -->
+                        <StackPanel Grid.Row="5" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Sync 필요여부" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Ellipse x:Name="GWEditorSyncStatusIndicator" Width="12" Height="12"
+                                     VerticalAlignment="Center" Fill="Gray"/>
+                        </StackPanel>
+                        <TextBox Grid.Row="5" Grid.Column="1" x:Name="TbGWEditorSyncStatus"
+                            IsReadOnly="True" MinHeight="24" Height="40" VerticalAlignment="Center"
+                            TextWrapping="Wrap" VerticalContentAlignment="Top" Margin="0,0,0,0"/>
+
+                        <!-- 구분선 + 실행 버튼 2x2 -->
+                        <Border Grid.Row="0" Grid.RowSpan="6" Grid.Column="2"
+                                BorderBrush="#DDDDDD" BorderThickness="1,0,0,0" Margin="12,0,0,0" Padding="12,0,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                    <Button x:Name="BtnGWEditorRefresh" Content="새로고침" Width="90" Margin="0,0,8,0"
+                                            Click="BtnGWEditorRefresh_Click"/>
+                                    <Button x:Name="BtnRunGWEditor" Content="Editor실행" Width="90"
+                                            Click="BtnRunGWEditor_Click"/>
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button x:Name="BtnGWEditorSync" Content="Sync" Width="90" Margin="0,0,8,0"
+                                            Click="BtnGWEditorSync_Click"/>
+                                    <Button x:Name="BtnGWEditorLocalRollback" Content="Local Rollback" Width="110"
+                                            Click="BtnGWEditorLocalRollback_Click"/>
+                                </StackPanel>
                             </Grid>
-                        </StackPanel>
-
-                        <Button Grid.Column="2"
-                                x:Name="BtnGWEditorRefresh"
-                                Content="새로고침"
-                                Width="90"
-                                Margin="10,0,0,0"
-                                Click="BtnGWEditorRefresh_Click"/>
-
-                        <Button Grid.Column="3"
-                                x:Name="BtnRunGWEditor"
-                                Content="실행"
-                                Width="80"
-                                Margin="8,0,0,0"
-                                Click="BtnRunGWEditor_Click"/>
+                        </Border>
                     </Grid>
 
                     <!-- 실행 옵션 (에디터 실행 인자) -->
@@ -392,7 +305,7 @@
             </TabItem>
 
 
-            <!-- 4) GameStarter (v2 UI 그대로 유지) -->
+            <!-- 3) GameStarter (v2 UI 그대로 유지) -->
             <TabItem Header="GameStarter">
                 <Grid Margin="0">
                     <Grid.RowDefinitions>
