@@ -19,6 +19,10 @@ namespace BravoGameLauncherGui
         private const string BuildServerBaseUrl =
             "http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds";
 
+        /// <summary>GameStarter DS(GWServer.exe) 기본 실행 인자.</summary>
+        public const string DefaultDedicatedServerArgs =
+            "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1";
+
         public string RootDownloadDir { get; private set; }
 
         public GameBuildLauncher(Action<string> log, string rootDownloadDir)
@@ -310,7 +314,10 @@ namespace BravoGameLauncherGui
             Directory.CreateDirectory(RootDownloadDir);
         }
 
-        public async Task RunDedicatedServerAsync(string dsZipFileName, Action<double, string?>? progress = null)
+        public async Task RunDedicatedServerAsync(
+            string dsZipFileName,
+            Action<double, string?>? progress = null,
+            string? dsArgsOverride = null)
         {
             // ✅ v5: DS만 실행에서도 기존 DS가 떠 있으면 종료
             KillRunningDedicatedServer();
@@ -323,7 +330,7 @@ namespace BravoGameLauncherGui
 
             string dsUnpackDir = await DownloadAndExtractWithProgressAsync(dsZipFileName, "DS", progress, 0, 100);
             progress?.Invoke(-1, "DS 실행 중...");
-            StartDedicatedServer(dsUnpackDir);
+            StartDedicatedServer(dsUnpackDir, dsArgsOverride);
         }
 
         /// <summary>클라이언트만 다운로드 후 실행 (DS 없음).</summary>
@@ -503,7 +510,8 @@ namespace BravoGameLauncherGui
             string dsZipFileName,
             bool useWindowed,
             Action<double, string?>? progress = null,
-            string? clientArgsOverride = null)
+            string? clientArgsOverride = null,
+            string? dsArgsOverride = null)
         {
             // ✅ 0) DS가 실행 중이면 먼저 종료 (압축해제/삭제 전에!)
             KillRunningDedicatedServer();
@@ -534,8 +542,8 @@ namespace BravoGameLauncherGui
 
             progress?.Invoke(-1, "게임 실행 중...");
 
-            // 3) DS 실행 (커맨드 고정)
-            StartDedicatedServer(dsUnpackDir);
+            // 3) DS 실행 (실행 옵션은 호출측에서 전달 또는 기본값)
+            StartDedicatedServer(dsUnpackDir, dsArgsOverride);
 
             // 4) Client 실행 (DS 실행 후, 실행 옵션은 호출측에서 전달 또는 기본값)
             string clientArgs = !string.IsNullOrWhiteSpace(clientArgsOverride) ? clientArgsOverride.Trim() : "-log -LogCmds=\"Global Verbose\"";
@@ -553,7 +561,7 @@ namespace BravoGameLauncherGui
             });
         }
 
-        private void StartDedicatedServer(string dsUnpackDir)
+        private void StartDedicatedServer(string dsUnpackDir, string? dsArgsOverride = null)
         {
             // GWServer.exe 탐색
             string? dsExePath = FindExecutable(dsUnpackDir, "GWServer.exe");
@@ -563,7 +571,7 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            string dsArgs = "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log";
+            string dsArgs = !string.IsNullOrWhiteSpace(dsArgsOverride) ? dsArgsOverride.Trim() : DefaultDedicatedServerArgs;
             _log($"[INFO] DS 실행: {dsExePath} {dsArgs}");
 
             Process.Start(new ProcessStartInfo

@@ -734,6 +734,14 @@ namespace BravoGameLauncherGui
         private const string DefaultGWEditorArgs = "-nocompile";
         private const string DefaultGameStarterArgs = "-log -LogCmds=\"Global Verbose\"";
 
+        /// <summary>DS 실행 옵션 멀티라인에서 줄바꿈만 공백으로 합칩니다(프로세스 인자는 한 줄).</summary>
+        private static string NormalizeMultilineLauncherArgs(string? text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            var t = text.Trim();
+            return t.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
+        }
+
         private void BtnGWEditorArgsReset_Click(object sender, RoutedEventArgs e)
         {
             TbGWEditorArgs.Text = DefaultGWEditorArgs;
@@ -742,6 +750,11 @@ namespace BravoGameLauncherGui
         private void BtnGameStarterArgsReset_Click(object sender, RoutedEventArgs e)
         {
             TbGameStarterArgs.Text = DefaultGameStarterArgs;
+        }
+
+        private void BtnGameStarterDsArgsReset_Click(object sender, RoutedEventArgs e)
+        {
+            TbGameStarterDsArgs.Text = GameBuildLauncher.DefaultDedicatedServerArgs;
         }
 
         private bool _gwEditorRefreshing = false;
@@ -1101,9 +1114,12 @@ namespace BravoGameLauncherGui
                 string clientArgs = (TbGameStarterArgs?.Text ?? "").Trim();
                 if (string.IsNullOrWhiteSpace(clientArgs)) clientArgs = DefaultGameStarterArgs;
 
+                string dsArgs = NormalizeMultilineLauncherArgs(TbGameStarterDsArgs?.Text);
+                if (string.IsNullOrWhiteSpace(dsArgs)) dsArgs = GameBuildLauncher.DefaultDedicatedServerArgs;
+
                 if (runClient && runDS)
                 {
-                    await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed, ReportGameStarterProgress, clientArgs);
+                    await _launcher.RunLocalWithDedicatedServerAsync(winZip, dsZip, useWindowed, ReportGameStarterProgress, clientArgs, dsArgs);
                 }
                 else if (runClient)
                 {
@@ -1111,7 +1127,7 @@ namespace BravoGameLauncherGui
                 }
                 else
                 {
-                    await _launcher.RunDedicatedServerAsync(dsZip, ReportGameStarterProgress);
+                    await _launcher.RunDedicatedServerAsync(dsZip, ReportGameStarterProgress, dsArgs);
                 }
             }
             finally
