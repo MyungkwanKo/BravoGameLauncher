@@ -43,7 +43,7 @@ namespace BravoGameLauncherGui
     {
         private static readonly HttpClient Http = new HttpClient();
 
-        private const string InstalledBuildBaseUrl = "http://bravo-build.omnicraftlabs.co.kr:8000/InstalledBuilds";
+        private const string InstalledBuildBaseUrl = "http://bravo-build.omnicraftlabs.co.kr/installed";
 
         public static async Task<InstalledBuildLatest?> GetLatestAsync(string engineVersion, Action<string> log)
         {

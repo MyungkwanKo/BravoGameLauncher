@@ -15,7 +15,7 @@ pipeline {
   environment {
     // 배포 관련 (스크립트 하드코딩 X, Jenkinsfile env 고정)
     DEPLOY_ROOT       = 'D:\\Build\\Launcher'
-    DOWNLOAD_BASE_URL = 'http://bravo-build.omnicraftlabs.co.kr:8000/Launcher/'
+    DOWNLOAD_BASE_URL = 'http://bravo-build.omnicraftlabs.co.kr/launcher/'
     LAUNCHER_JSON     = 'D:\\Build\\Launcher\\launcher.json'
 
     // Jenkins 작업 폴더 내 산출물 경로

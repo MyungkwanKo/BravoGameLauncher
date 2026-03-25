@@ -11,7 +11,7 @@ namespace Run_GWLauncher
     internal class Program
     {
         private const string ServerBaseUrl =
-            "http://bravo-build.omnicraftlabs.co.kr:8000/Launcher/launcher.json";
+            "http://bravo-build.omnicraftlabs.co.kr/launcher/launcher.json";
 
         private static readonly string LocalRoot =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

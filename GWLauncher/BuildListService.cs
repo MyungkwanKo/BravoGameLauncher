@@ -45,7 +45,7 @@ namespace BravoGameLauncherGui
     {
         // TODO: 필요하면 AppSettings에서 읽도록 바꿀 수 있음
         private const string BuildListUrl =
-            "http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds/builds.json";
+            "http://bravo-build.omnicraftlabs.co.kr/builds/builds.json";
 
         public static async Task<BuildListResponse?> FetchBuildListAsync()
         {

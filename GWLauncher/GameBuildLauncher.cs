@@ -17,7 +17,7 @@ namespace BravoGameLauncherGui
 
         // 서버 빌드 베이스 URL (버전/플랫폼/파일명 붙여서 사용)
         private const string BuildServerBaseUrl =
-            "http://bravo-build.omnicraftlabs.co.kr:8000/GameBuilds";
+            "http://bravo-build.omnicraftlabs.co.kr/builds";
 
         /// <summary>GameStarter DS(GWServer.exe) 기본 실행 인자.</summary>
         public const string DefaultDedicatedServerArgs =
