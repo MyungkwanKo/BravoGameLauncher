@@ -26,6 +26,7 @@ namespace BravoGameLauncherGui
         {
             public int    BuildNo   { get; set; }               // Jenkins build number
             public string FileName  { get; set; } = string.Empty;
+            public string DsFileName { get; set; } = string.Empty;
             public string Config    { get; set; } = string.Empty;
             public string Version   { get; set; } = string.Empty;
             public int    CL        { get; set; }
@@ -93,7 +94,8 @@ namespace BravoGameLauncherGui
             string selectedType = GetSelectedBuildType();
 
             var filtered = _allBuilds
-                .Where(b => string.Equals(b.Config, selectedType, StringComparison.OrdinalIgnoreCase))
+                .Where(b => string.Equals(selectedType, "All", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(b.Config, selectedType, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(b => b.SortKey)
                 .ToList();
 
@@ -118,7 +120,7 @@ namespace BravoGameLauncherGui
             {
                 return content;
             }
-            return "Development";
+            return "All";
         }
 
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
@@ -278,8 +280,14 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
-                // DS 존재 여부 빠른 조회용 (파일명 기반)
-                // 규칙: <클라이언트빌드명(확장자제거)> + "_DS" 가 DS 플랫폼에 존재하면 O
+                // DS 존재 여부 빠른 조회용.
+                // 1) Jenkins BuildNo 매칭 우선: 클라이언트/DS Config가 달라도 같은 빌드 번호면 DS 존재로 판단.
+                // 2) 레거시 fallback: 파일명 기반(baseName + "_DS") 매칭.
+                var dsByBuildNo = dsBuilds
+                    .Where(b => b.JenkinsBuildNumber > 0 && !string.IsNullOrWhiteSpace(b.FileName))
+                    .GroupBy(b => b.JenkinsBuildNumber)
+                    .ToDictionary(g => g.Key, g => g.First().FileName);
+
                 var dsNameSet = new HashSet<string>(
                     dsBuilds
                         .Where(b => !string.IsNullOrWhiteSpace(b.FileName))
@@ -308,12 +316,17 @@ namespace BravoGameLauncherGui
                     // DS 매칭 (파일명 기반)
                     var baseName = Path.GetFileNameWithoutExtension(item.FileName);
                     var expectedDsBaseName = baseName + "_DS";
-                    bool hasDs = dsNameSet.Contains(expectedDsBaseName);
+                    bool hasDs = (item.JenkinsBuildNumber > 0 && dsByBuildNo.ContainsKey(item.JenkinsBuildNumber))
+                              || dsNameSet.Contains(expectedDsBaseName);
+                    string matchedDsFileName = (item.JenkinsBuildNumber > 0 && dsByBuildNo.TryGetValue(item.JenkinsBuildNumber, out var byNo))
+                        ? byNo
+                        : (dsNameSet.Contains(expectedDsBaseName) ? expectedDsBaseName + ".zip" : string.Empty);
 
                     _allBuilds.Add(new ServerBuildItem
                     {
                         BuildNo   = item.JenkinsBuildNumber,
                         FileName  = item.FileName,
+                        DsFileName = matchedDsFileName,
                         Config    = !string.IsNullOrWhiteSpace(item.Config) ? item.Config : GetBuildConfigFromFileName(item.FileName),
                         Version   = !string.IsNullOrWhiteSpace(item.Version) ? item.Version : (parse.Version ?? string.Empty),
                         CL        = item.Cl != 0 ? item.Cl : parse.CL,
@@ -732,7 +745,6 @@ namespace BravoGameLauncherGui
         }
 
         private const string DefaultGWEditorArgs = "-nocompile";
-        private const string DefaultGameStarterArgs = "-log -LogCmds=\"Global Verbose\"";
 
         /// <summary>DS 실행 옵션 멀티라인에서 줄바꿈만 공백으로 합칩니다(프로세스 인자는 한 줄).</summary>
         private static string NormalizeMultilineLauncherArgs(string? text)
@@ -749,7 +761,7 @@ namespace BravoGameLauncherGui
 
         private void BtnGameStarterArgsReset_Click(object sender, RoutedEventArgs e)
         {
-            TbGameStarterArgs.Text = DefaultGameStarterArgs;
+            TbGameStarterArgs.Text = string.Empty;
         }
 
         private void BtnGameStarterDsArgsReset_Click(object sender, RoutedEventArgs e)
@@ -1110,9 +1122,10 @@ namespace BravoGameLauncherGui
             {
                 bool useWindowed = CbWindowed.IsChecked == true;
                 string winZip = selected.FileName;
-                string dsZip = Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
+                string dsZip = !string.IsNullOrWhiteSpace(selected.DsFileName)
+                    ? selected.DsFileName
+                    : Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
                 string clientArgs = (TbGameStarterArgs?.Text ?? "").Trim();
-                if (string.IsNullOrWhiteSpace(clientArgs)) clientArgs = DefaultGameStarterArgs;
 
                 string dsArgs = NormalizeMultilineLauncherArgs(TbGameStarterDsArgs?.Text);
                 if (string.IsNullOrWhiteSpace(dsArgs)) dsArgs = GameBuildLauncher.DefaultDedicatedServerArgs;
@@ -1129,6 +1142,16 @@ namespace BravoGameLauncherGui
                 {
                     await _launcher.RunDedicatedServerAsync(dsZip, ReportGameStarterProgress, dsArgs);
                 }
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[ERROR] 게임 실행 중 오류가 발생했습니다.");
+                AppendLog(ex.Message);
+                MessageBox.Show(
+                    $"게임 실행 중 오류가 발생했습니다.\n\n{ex.Message}",
+                    "실행 오류",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
             finally
             {

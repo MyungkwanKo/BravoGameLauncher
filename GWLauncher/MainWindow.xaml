@@ -325,6 +325,7 @@
                                   Width="130"
                                   SelectedIndex="0"
                                   VerticalAlignment="Center">
+                            <ComboBoxItem Content="All" />
                             <ComboBoxItem Content="Development" />
                             <ComboBoxItem Content="Shipping" />
                         </ComboBox>
@@ -381,7 +382,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="클라이언트 실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox Grid.Column="1" x:Name="TbGameStarterArgs" Height="24" VerticalContentAlignment="Center"
-                                 Text="-log -LogCmds=&quot;Global Verbose&quot;" MinWidth="0"
+                                 MinWidth="0"
                                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"/>
                         <Button Grid.Column="2" x:Name="BtnGameStarterArgsReset" Content="Reset" Width="60" Height="24" Margin="8,0,0,0"
                                 Click="BtnGameStarterArgsReset_Click"/>

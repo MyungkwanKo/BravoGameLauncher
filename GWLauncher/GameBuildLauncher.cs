@@ -358,9 +358,11 @@ namespace BravoGameLauncherGui
             }
 
             progress?.Invoke(-1, "게임 실행 중...");
-            string clientArgs = !string.IsNullOrWhiteSpace(clientArgsOverride) ? clientArgsOverride.Trim() : "-log -LogCmds=\"Global Verbose\"";
+            string clientArgs = clientArgsOverride?.Trim() ?? "";
             if (useWindowed)
-                clientArgs += " -windowed -ResX=1920 -ResY=1080";
+                clientArgs = string.IsNullOrEmpty(clientArgs)
+                    ? "-windowed -ResX=1920 -ResY=1080"
+                    : clientArgs + " -windowed -ResX=1920 -ResY=1080";
 
             _log($"[INFO] Client 실행: {clientExePath} {clientArgs}");
             Process.Start(new ProcessStartInfo
@@ -545,10 +547,12 @@ namespace BravoGameLauncherGui
             // 3) DS 실행 (실행 옵션은 호출측에서 전달 또는 기본값)
             StartDedicatedServer(dsUnpackDir, dsArgsOverride);
 
-            // 4) Client 실행 (DS 실행 후, 실행 옵션은 호출측에서 전달 또는 기본값)
-            string clientArgs = !string.IsNullOrWhiteSpace(clientArgsOverride) ? clientArgsOverride.Trim() : "-log -LogCmds=\"Global Verbose\"";
+            // 4) Client 실행 (DS 실행 후, 실행 옵션은 호출측 그대로; 비어 있으면 인자 없음)
+            string clientArgs = clientArgsOverride?.Trim() ?? "";
             if (useWindowed)
-                clientArgs += " -windowed -ResX=1920 -ResY=1080";
+                clientArgs = string.IsNullOrEmpty(clientArgs)
+                    ? "-windowed -ResX=1920 -ResY=1080"
+                    : clientArgs + " -windowed -ResX=1920 -ResY=1080";
 
             _log($"[INFO] Client 실행: {clientExePath} {clientArgs}");
 
