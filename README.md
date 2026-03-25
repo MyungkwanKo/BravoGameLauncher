@@ -3,6 +3,29 @@
 통합 프로젝트 구조 및 동작 방식 정리 문서  
 (런처 + 런처 스타터)
 
+### 배포 서버 URL (Nginx)
+
+배포는 **IIS + 포트(:8000)** 가 아닌 **Nginx** 기준 경로를 사용합니다. 코드·`Jenkinsfile.groovy`의 상수와 맞춥니다.
+
+| 구분 | 베이스 URL | 비고 |
+|------|------------|------|
+| Engine (Installed Build, `latest.json` 등) | `http://bravo-build.omnicraftlabs.co.kr/installed/` | `InstalledBuildServices.cs` |
+| 게임 빌드 (`builds.json`, ZIP 다운로드) | `http://bravo-build.omnicraftlabs.co.kr/builds/` | `BuildListService.cs`, `GameBuildLauncher.cs` — ZIP 경로: `{버전}/WIN 또는 DS/{zip파일명}` |
+| 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
+
+---
+## 🆕 v16 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v16** (`LauncherVersionInfo.Version`)
+
+### ✅ 배포 서버 (IIS → Nginx)
+- 배포 방식을 IIS·`:8000` 기준에서 **Nginx** 기준 URL로 전환.
+- **Engine(Installed Build)**: `http://bravo-build.omnicraftlabs.co.kr/installed/` — `InstalledBuildServices.cs`
+- **게임 빌드** (`builds.json`, ZIP): `http://bravo-build.omnicraftlabs.co.kr/builds/` — `BuildListService.cs`, `GameBuildLauncher.cs`
+- **런처 스타터** (`launcher.json`, 런처 ZIP 배포): `http://bravo-build.omnicraftlabs.co.kr/launcher/` — `Run_GWLauncher/Program.cs`, `Jenkinsfile.groovy`의 `DOWNLOAD_BASE_URL`
+- README: 위 URL 표·`launcher.json` 예시·서버 패치 구조 문구 갱신
+
 ---
 ## 🆕 v15 변경 사항 요약
 
@@ -407,7 +430,7 @@ GWServer.exe /GWBattleRoyale/Maps/L_BR_Proto -log -port=7777
 - 실행 인자 구성 및 프로세스 실행
 
 #### ✔ BuildListService.cs
-- 서버 `/GameBuilds/builds.json` 다운로드  
+- 서버 `http://bravo-build.omnicraftlabs.co.kr/builds/builds.json` 다운로드  
 - JSON → 빌드 리스트로 변환  
 - Jenkins 빌드 번호(`jenkinsBuildNumber`) 포함
 
@@ -472,7 +495,7 @@ launcher.json 구성 예:
   "minSupportedVersion": 1,
   "package": {
     "fileName": "GWLauncher_v2.zip",
-    "downloadUrl": "http://.../Launcher/GWLauncher_v2.zip"
+    "downloadUrl": "http://bravo-build.omnicraftlabs.co.kr/launcher/GWLauncher_v2.zip"
   },
   "releaseNotes": "v2: DS 표기 및 Local DS 자동 실행/안정화"
 }
@@ -567,16 +590,18 @@ Run_GWLauncher/bin/Release/<TFM>/win-x64/publish/Run_GWLauncher.exe
 
 # 📡 5. 서버 패치 구조 요약
 
-서버 디렉터리 `/Launcher/`:
+Nginx에서 런처 패키지를 노출하는 디렉터리 예시 (`/launcher/`):
 
 ```
-Launcher/
+launcher/
   ├─ launcher.json
   ├─ GWLauncher_v1.zip
   ├─ GWLauncher_v2.zip
   ├─ GWLauncher_v3.zip
   └─ ...
 ```
+
+`Run_GWLauncher`는 `http://bravo-build.omnicraftlabs.co.kr/launcher/launcher.json`을 읽고, `package.downloadUrl`로 ZIP을 받습니다. Jenkins 파이프라인(`Jenkinsfile.groovy`)의 `DOWNLOAD_BASE_URL`이 위 베이스와 일치해야 합니다.
 
 ### launcher.json 예시
 
@@ -586,7 +611,7 @@ Launcher/
   "minSupportedVersion": 1,
   "package": {
     "fileName": "GWLauncher_v2.zip",
-    "downloadUrl": "http://server/Launcher/GWLauncher_v2.zip"
+    "downloadUrl": "http://bravo-build.omnicraftlabs.co.kr/launcher/GWLauncher_v2.zip"
   },
   "releaseNotes": "v2: DS 표기 및 Local DS 자동 실행/안정화"
 }
@@ -616,6 +641,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v16 | 2026-03-25 | 배포 서버 IIS→Nginx URL 전환 (`/installed/`, `/builds/`, `/launcher/`); `InstalledBuildServices`·`GameBuildLauncher`·`BuildListService`·`Run_GWLauncher`·`Jenkinsfile` 반영; README 배포 URL·예시 문서 갱신 |
 | v15 | 2026-03-25 | GameStarter: 빌드 목록 All·Config는 클라 기준·DS는 빌드번호/실제 DS 파일명 매칭; 클라 실행 옵션 비우면 무인자·Reset/기본 -log 제거; 실행 예외 처리 보강 |
 | v14 | 2026-03-23 | GameStarter: 클라이언트/DS 실행 옵션 분리·DS 기본 trace 인자; DS 옵션 멀티라인·빌드 목록 가로 스크롤 비활성화로 로그 영역 겹침 방지 |
 | v13 | 2026-03-19 | 탭 통합: p4_sync → GWEditor 통합; Local CL/Build CL 표시, Sync·Local Rollback 버튼 2×2; Sync 필요 여부 메시지·아이콘 위치·구분선 보완 |
