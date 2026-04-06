@@ -51,9 +51,10 @@ pipeline {
           $ErrorActionPreference = "Stop"
 
           # GW 런처만 빌드·배포: Coop 등 다른 LauncherVersionInfo.cs는 사용하지 않음
-          $filePath = Join-Path $env:WORKSPACE "GWLauncher\LauncherVersionInfo.cs"
+          # Groovy ''' 문자열에서는 \를 \\로 써야 PowerShell에 \ 한 개가 전달됨
+          $filePath = Join-Path $env:WORKSPACE "GWLauncher\\LauncherVersionInfo.cs"
           if (-not (Test-Path -LiteralPath $filePath)) {
-            throw "GWLauncher\LauncherVersionInfo.cs not found: $filePath"
+            throw "GWLauncher\\LauncherVersionInfo.cs not found: $filePath"
           }
 
           $text = Get-Content -LiteralPath $filePath -Raw -Encoding UTF8
