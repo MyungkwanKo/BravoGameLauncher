@@ -49,22 +49,22 @@ pipeline {
       steps {
         powershell '''
           $ErrorActionPreference = "Stop"
-    
-          # workspace 전체에서 LauncherVersionInfo.cs를 찾아서 첫 번째 사용
-          $file = Get-ChildItem -Path $env:WORKSPACE -Recurse -Filter "LauncherVersionInfo.cs" -File |
-                  Select-Object -First 1
-    
-          if (-not $file) { throw "LauncherVersionInfo.cs not found under workspace: $env:WORKSPACE" }
-    
-          $text = Get-Content $file.FullName -Raw -Encoding UTF8
-    
+
+          # GW 런처만 빌드·배포: Coop 등 다른 LauncherVersionInfo.cs는 사용하지 않음
+          $filePath = Join-Path $env:WORKSPACE "GWLauncher\LauncherVersionInfo.cs"
+          if (-not (Test-Path -LiteralPath $filePath)) {
+            throw "GWLauncher\LauncherVersionInfo.cs not found: $filePath"
+          }
+
+          $text = Get-Content -LiteralPath $filePath -Raw -Encoding UTF8
+
           # 예: public const int Version = 4;  또는  public static string Version = "4";
           $m = [regex]::Match($text, 'Version\\s*=\\s*"?([0-9]+)"?\\s*;')
-          if (-not $m.Success) { throw "Failed to parse Version from $($file.FullName)" }
-    
+          if (-not $m.Success) { throw "Failed to parse Version from $filePath" }
+
           $v = $m.Groups[1].Value
-          Write-Host "Detected VERSION=$v from $($file.FullName)"
-    
+          Write-Host "Detected VERSION=$v from $filePath"
+
           "VERSION=$v" | Out-File -FilePath "$env:WORKSPACE\\version.env" -Encoding ascii
         '''
         script {
