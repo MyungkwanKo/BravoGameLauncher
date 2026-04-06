@@ -14,6 +14,18 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
 
 ---
+## 🆕 v17 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v17** (`LauncherVersionInfo.Version`)
+
+### ✅ 다운로드 진행률 + 용량 표시
+- **Engine 탭**: Installed Build ZIP 다운로드 시 진행 문구에 **받은 용량 / 총 용량**을 함께 표시 (`InstalledBuildServices.DownloadZipAsync`, `DownloadProgressFormatter.cs`)
+- **GameStarter 탭**: 게임 빌드(WIN/DS) ZIP 다운로드 시에도 동일하게 **현재 / 총** 용량 표시 (`GameBuildLauncher.cs`)
+- **표기 규칙**: **총 용량** 기준으로 단위 결정 — **1 GiB(1024³ 바이트) 이상이면 GB**, 미만이면 **MB**. 현재·총은 **항상 같은 단위**, 소수점 **둘째 자리**까지
+- **총 크기를 알 수 없는 경우**(예: HTTP `Content-Length` 없음): `xx.xx MB / ?` 형태로 표시. Engine 탭은 이 경우 진행 **ProgressBar를 비결정(indeterminate)** 으로 표시
+
+---
 ## 🆕 v16 변경 사항 요약
 
 ### ✅ 버전
@@ -228,15 +240,21 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 ```
 /Launcher Project Root
 │
-├─ BravoGameLauncherGui/          ← GWLauncher v3 (통합 런처)
+├─ GWLauncher/                    ← 통합 런처 (BravoGameLauncherGui.csproj, 출력명 GWLauncher)
 │     ├─ MainWindow.xaml
 │     ├─ MainWindow.xaml.cs
 │     ├─ GameBuildLauncher.cs
 │     ├─ BuildListService.cs
 │     ├─ AppSettings.cs
 │     ├─ InstalledBuildServices.cs   ← Engine(Installed Build) 다운로드/설치
+│     ├─ DownloadProgressFormatter.cs ← 다운로드 진행 UI용 용량 포맷 (v17)
 │     ├─ LauncherVersionInfo.cs
 │     └─ (통합 런처 관련 전체 스크립트)
+│
+├─ Coop/                          ← 협업부서 배포용 CoopLauncher (GameStarter만, 별도 빌드)
+│     ├─ Coop.sln
+│     ├─ CoopLauncher/ …
+│     └─ publish-coop-launcher.ps1
 │
 └─ Run_GWLauncher/                ← 런처 스타터
       ├─ Program.cs
@@ -253,7 +271,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - Installed Build(Unreal Engine) 다운로드 및 설치
 - 서버 `latest.json`(엔진 버전별) 기반 최신 빌드 정보 표시
 - 설치 경로: `{BasePath}\GW_Engine\{엔진버전}` (BasePath 변경 가능)
-- **다운로드**: ZIP만 다운로드 (진행률, SHA256 검증)
+- **다운로드**: ZIP만 다운로드 (진행률 + **받은 용량/총 용량** 표시 v17, SHA256 검증)
 - **다운로드 + 설치**: 다운로드 후 압축 해제하여 `Engine` 폴더만 적용
 - 로컬 `installed_build.meta.json`으로 설치 상태·업데이트 필요 여부 표시
 - 탭 진입 시 자동 상태 갱신
@@ -278,7 +296,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - **빌드 타입**: All(기본) / Development / Shipping — All이면 두 타입 통합 표시, **Config는 WIN(클라이언트) 기준** (v15)
 - **DS O/X**: Jenkins 빌드 번호 우선, DS 실제 파일명으로 다운로드 (v15)
 - **실행 대상**: 클라이언트 / DS 체크박스 (클라이언트 기본 체크, 둘 다 동시 선택 가능)
-- **게임 실행** 버튼: 선택에 따라 클라이언트만 / DS만 / 둘 다 다운로드·실행 (v11)
+- **게임 실행** 버튼: 선택에 따라 클라이언트만 / DS만 / 둘 다 다운로드·실행 (v11). ZIP 다운로드 중 진행 문구에 **현재/총 용량** 표시 (v17, Engine 탭과 동일 규칙)
 - 둘 다 미체크 시 경고 후 실행하지 않음
 - **클라이언트 실행 옵션**: 비어 있으면 인자 없음, Reset은 비우기 (v15). **DS 실행 옵션** (v14): `GWServer.exe` 인자 편집·Reset, 비어 있으면 기본값, 멀티라인은 줄바꿈만 공백으로 합침. 상세는 **v14·v15 변경 사항** 참고.
 - **캐시**: 로컬 캐시 경로 표시 + **캐시 경로 변경**, **캐시 삭제**, **바로가기**(탐색기 열기, v12) 버튼 (v11에서 상단 옵션 메뉴에서 이전)
@@ -381,14 +399,18 @@ GWServer.exe /GWBattleRoyale/Maps/L_BR_Proto -log -port=7777
 ```
 /Launcher Project Root
 │
-├─ BravoGameLauncherGui/          ← GW 런처(WPF)
+├─ GWLauncher/                    ← GW 런처(WPF, csproj: BravoGameLauncherGui.csproj)
 │     ├─ MainWindow.xaml
 │     ├─ MainWindow.xaml.cs
 │     ├─ GameBuildLauncher.cs
 │     ├─ BuildListService.cs
 │     ├─ AppSettings.cs
+│     ├─ DownloadProgressFormatter.cs
 │     ├─ LauncherVersionInfo.cs
 │     └─ ... (런처 관련 전체 스크립트)
+│
+├─ Coop/                          ← CoopLauncher (협업부서용, 선택 빌드)
+│     └─ …
 │
 └─ Run_GWLauncher/                ← 런처 스타터(콘솔)
       ├─ Program.cs
@@ -427,7 +449,11 @@ GWServer.exe /GWBattleRoyale/Maps/L_BR_Proto -log -port=7777
 - 캐시 구조 관리  
 - 압축 해제  
 - 실행 파일(GW.exe) 검색  
-- 실행 인자 구성 및 프로세스 실행
+- 실행 인자 구성 및 프로세스 실행  
+- (v17) 다운로드 진행 콜백 메시지에 **현재/총 용량** 문자열 포함 (`DownloadProgressFormatter` 사용)
+
+#### ✔ DownloadProgressFormatter.cs (v17)
+- 다운로드 진행 UI용: 받은 바이트·총 바이트를 동일 단위(총 ≥1GiB → GB, 미만 → MB)로 포맷
 
 #### ✔ BuildListService.cs
 - 서버 `http://bravo-build.omnicraftlabs.co.kr/builds/builds.json` 다운로드  
@@ -641,6 +667,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v17 | 2026-03-31 | 다운로드 진행률에 용량(현재/총) 표시 — Engine·GameStarter; 총 ≥1GiB는 GB·미만은 MB·소수 2자리; `DownloadProgressFormatter.cs` 추가 |
 | v16 | 2026-03-25 | 배포 서버 IIS→Nginx URL 전환 (`/installed/`, `/builds/`, `/launcher/`); `InstalledBuildServices`·`GameBuildLauncher`·`BuildListService`·`Run_GWLauncher`·`Jenkinsfile` 반영; README 배포 URL·예시 문서 갱신 |
 | v15 | 2026-03-25 | GameStarter: 빌드 목록 All·Config는 클라 기준·DS는 빌드번호/실제 DS 파일명 매칭; 클라 실행 옵션 비우면 무인자·Reset/기본 -log 제거; 실행 예외 처리 보강 |
 | v14 | 2026-03-23 | GameStarter: 클라이언트/DS 실행 옵션 분리·DS 기본 trace 인자; DS 옵션 멀티라인·빌드 목록 가로 스크롤 비활성화로 로그 영역 겹침 방지 |

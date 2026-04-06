@@ -93,7 +93,8 @@ namespace BravoGameLauncherGui
             File.WriteAllText(metaPath, json);
         }
 
-        public static async Task DownloadZipAsync(string url, string destZipPath, long expectedSize, Action<string> log, Action<double> progress)
+        /// <param name="progress">(퍼센트, 받은 바이트, 총 바이트 추정). 총 크기를 모르면 totalBytes는 0.</param>
+        public static async Task DownloadZipAsync(string url, string destZipPath, long expectedSize, Action<string> log, Action<double, long, long> progress)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(destZipPath)!);
 
@@ -104,7 +105,7 @@ namespace BravoGameLauncherGui
                 if (fi.Length == expectedSize && expectedSize > 0)
                 {
                     log($"[INFO] ZIP 이미 존재(크기 일치) → 다운로드 생략: {destZipPath}");
-                    progress(100);
+                    progress(100, fi.Length, fi.Length);
                     return;
                 }
 
@@ -115,7 +116,10 @@ namespace BravoGameLauncherGui
             using var resp = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
             resp.EnsureSuccessStatusCode();
 
-            var total = resp.Content.Headers.ContentLength ?? expectedSize;
+            long total = resp.Content.Headers.ContentLength ?? expectedSize;
+            if (total < 0)
+                total = 0;
+
             await using var httpStream = await resp.Content.ReadAsStreamAsync();
             await using var fs = new FileStream(destZipPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
 
@@ -130,11 +134,16 @@ namespace BravoGameLauncherGui
                 if (total > 0)
                 {
                     double pct = (double)readTotal / total * 100.0;
-                    progress(Math.Min(100, pct));
+                    progress(Math.Min(100, pct), readTotal, total);
+                }
+                else
+                {
+                    progress(0, readTotal, 0);
                 }
             }
 
-            progress(100);
+            long doneTotal = total > 0 ? total : readTotal;
+            progress(100, readTotal, doneTotal);
             log($"[SUCCESS] ZIP 다운로드 완료: {destZipPath}");
         }
 

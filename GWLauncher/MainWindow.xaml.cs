@@ -1334,11 +1334,16 @@ namespace BravoGameLauncherGui
                     destZipPath: zipPath,
                     expectedSize: _engineLatest.zip.size,
                     log: AppendEngineLog,
-                    progress: p =>
+                    progress: (p, readBytes, totalBytes) =>
                     {
-                        PbEngine.IsIndeterminate = false;
-                        PbEngine.Value = p;
-                        TxtEngineProgress.Text = $"다운로드 {p:0}%";
+                        bool unknownTotal = totalBytes <= 0 && p < 100;
+                        PbEngine.IsIndeterminate = unknownTotal;
+                        if (!unknownTotal)
+                            PbEngine.Value = p;
+                        var sz = DownloadProgressFormatter.FormatCurrentOverTotal(readBytes, totalBytes > 0 ? totalBytes : null);
+                        TxtEngineProgress.Text = unknownTotal
+                            ? $"다운로드 … ({sz})"
+                            : $"다운로드 {p:0}% ({sz})";
                     });
 
                 // 검증

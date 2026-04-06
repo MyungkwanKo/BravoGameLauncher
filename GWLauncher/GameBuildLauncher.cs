@@ -419,12 +419,21 @@ namespace BravoGameLauncherGui
             {
                 _log($"[INFO] ({platform}) ZIP 다운로드 시작...");
                 _log($"       URL: {downloadUrl}");
-                progress?.Invoke(MapProgress(0), $"{platform} 다운로드 0%");
 
                 using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
 
-                long? total = response.Content.Headers.ContentLength;
+                long? totalNullable = response.Content.Headers.ContentLength;
+                if (totalNullable < 0)
+                    totalNullable = null;
+
+                string SizeLabel(long read, long? tot)
+                    => DownloadProgressFormatter.FormatCurrentOverTotal(read, tot);
+
+                progress?.Invoke(
+                    MapProgress(0),
+                    $"{platform} 다운로드 0% ({SizeLabel(0, totalNullable)})");
+
                 await using var httpStream = await response.Content.ReadAsStreamAsync();
                 await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
 
@@ -435,20 +444,37 @@ namespace BravoGameLauncherGui
                 {
                     await fs.WriteAsync(buffer, 0, read);
                     readTotal += read;
-                    if (total > 0 && progress != null)
+                    if (progress == null)
+                        continue;
+
+                    if (totalNullable is long tot && tot > 0)
                     {
-                        double pct = (double)readTotal / total.Value * 100.0;
-                        progress(MapProgress(Math.Min(100, pct)), $"{platform} 다운로드 {pct:0}%");
+                        double pct = (double)readTotal / tot * 100.0;
+                        progress(
+                            MapProgress(Math.Min(100, pct)),
+                            $"{platform} 다운로드 {pct:0}% ({SizeLabel(readTotal, tot)})");
+                    }
+                    else
+                    {
+                        progress(
+                            -1,
+                            $"{platform} 다운로드 ({SizeLabel(readTotal, null)})");
                     }
                 }
 
-                progress?.Invoke(MapProgress(100), $"{platform} 다운로드 완료");
+                long effectiveTotal = (totalNullable is long t && t > 0) ? t : readTotal;
+                progress?.Invoke(
+                    MapProgress(100),
+                    $"{platform} 다운로드 완료 ({SizeLabel(readTotal, effectiveTotal)})");
                 _log($"[INFO] ({platform}) ZIP 다운로드 완료.");
             }
             else
             {
                 _log($"[INFO] ({platform}) 캐시된 ZIP 파일 사용.");
-                progress?.Invoke(MapProgress(100), $"{platform} 캐시 사용");
+                long len = new FileInfo(zipPath).Length;
+                progress?.Invoke(
+                    MapProgress(100),
+                    $"{platform} 캐시 사용 ({DownloadProgressFormatter.FormatCurrentOverTotal(len, len)})");
             }
 
             // unpacked 폴더가 이미 있으면 삭제/언팩 없이 바로 사용 (실행 시간 단축)

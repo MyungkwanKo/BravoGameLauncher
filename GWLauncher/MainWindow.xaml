@@ -127,7 +127,7 @@
                             <Button x:Name="BtnEngineDownloadInstall" Content="다운로드 + 설치" Width="140" Height="28" Margin="8,0,0,0"
                                     Click="BtnEngineDownloadInstall_Click"/>
                             <ProgressBar x:Name="PbEngine" Width="240" Height="18" Margin="16,4,0,0"/>
-                            <TextBlock x:Name="TxtEngineProgress" Margin="8,4,0,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtEngineProgress" Margin="8,4,0,0" VerticalAlignment="Center" MinWidth="220" TextWrapping="Wrap"/>
                         </StackPanel>
 
                         <!-- 로그 -->
@@ -370,7 +370,7 @@
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,0,10,4">
                         <TextBlock Text="진행율:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ProgressBar x:Name="PbGameStarter" Width="240" Height="18" Margin="0,0,8,0"/>
-                        <TextBlock x:Name="TxtGameStarterProgress" VerticalAlignment="Center" MinWidth="120"/>
+                        <TextBlock x:Name="TxtGameStarterProgress" VerticalAlignment="Center" MinWidth="280" TextWrapping="Wrap"/>
                     </StackPanel>
 
                     <!-- 클라이언트 실행 옵션 (GW.exe 인자): Grid로 남은 폭만 사용, 긴 줄은 입력란 내 가로 스크롤 -->
