@@ -338,6 +338,12 @@
                                 Margin="0,0,8,0"
                                 Click="BtnRefreshFromServer_Click" />
 
+                        <Button x:Name="BtnDownloadBuild"
+                                Content="다운로드"
+                                Width="80"
+                                Margin="0,0,8,0"
+                                Click="BtnDownloadBuild_Click" />
+
                         <Button x:Name="BtnRun"
                                 Content="게임 실행"
                                 Width="80"
