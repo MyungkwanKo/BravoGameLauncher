@@ -19,6 +19,10 @@ namespace BravoGameLauncherGui
         private const string BuildServerBaseUrl =
             "http://bravo-build.omnicraftlabs.co.kr/builds";
 
+        /// <summary>GameStarter 클라이언트(GW.exe) 기본 실행 인자.</summary>
+        public const string DefaultClientLaunchArgs =
+            "-trace=NetChannel,Cpu,Frame,Bookmark -tracefile -statnamedevents";
+
         /// <summary>GameStarter DS(GWServer.exe) 기본 실행 인자.</summary>
         public const string DefaultDedicatedServerArgs =
             "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1";
@@ -331,6 +335,56 @@ namespace BravoGameLauncherGui
             string dsUnpackDir = await DownloadAndExtractWithProgressAsync(dsZipFileName, "DS", progress, 0, 100);
             progress?.Invoke(-1, "DS 실행 중...");
             StartDedicatedServer(dsUnpackDir, dsArgsOverride);
+        }
+
+        /// <summary>
+        /// 클라이언트/DS 선택에 따라 ZIP 다운로드·압축 해제만 수행하고 프로세스는 실행하지 않습니다.
+        /// </summary>
+        public async Task PrepareBuildsOnlyAsync(
+            string clientZipFileName,
+            string dsZipFileName,
+            bool wantClient,
+            bool wantDS,
+            Action<double, string?>? progress = null)
+        {
+            if (!wantClient && !wantDS)
+            {
+                _log("[ERROR] 클라이언트 또는 DS 중 하나 이상을 선택하세요.");
+                return;
+            }
+
+            if (wantClient && string.IsNullOrWhiteSpace(clientZipFileName))
+            {
+                _log("[ERROR] Client ZIP 파일명이 비어 있습니다.");
+                return;
+            }
+
+            if (wantDS && string.IsNullOrWhiteSpace(dsZipFileName))
+            {
+                _log("[ERROR] DS ZIP 파일명이 비어 있습니다.");
+                return;
+            }
+
+            if (wantClient && wantDS)
+            {
+                progress?.Invoke(-1, "Client 다운로드 준비...");
+                await DownloadAndExtractWithProgressAsync(clientZipFileName, "WIN", progress, 0, 50);
+                progress?.Invoke(-1, "DS 다운로드 준비...");
+                await DownloadAndExtractWithProgressAsync(dsZipFileName, "DS", progress, 50, 100);
+            }
+            else if (wantClient)
+            {
+                progress?.Invoke(-1, "Client 다운로드 준비...");
+                await DownloadAndExtractWithProgressAsync(clientZipFileName, "WIN", progress, 0, 100);
+            }
+            else
+            {
+                progress?.Invoke(-1, "DS 다운로드 준비...");
+                await DownloadAndExtractWithProgressAsync(dsZipFileName, "DS", progress, 0, 100);
+            }
+
+            progress?.Invoke(100, "다운로드·압축 해제 완료");
+            _log("[INFO] 다운로드·압축 해제만 완료 (실행 없음).");
         }
 
         /// <summary>클라이언트만 다운로드 후 실행 (DS 없음).</summary>

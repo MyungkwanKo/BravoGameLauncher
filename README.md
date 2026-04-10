@@ -14,6 +14,23 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
 
 ---
+## 🆕 v18 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v18** (`LauncherVersionInfo.Version`)
+
+### ✅ GameStarter 탭 — 다운로드 전용 버튼
+- **다운로드** 버튼: **게임 실행**과 동일하게 빌드 선택 + **클라이언트 / DS** 체크 조합에 따라 ZIP을 **다운로드·압축 해제만** 수행하고 **프로세스는 실행하지 않음** (`GameBuildLauncher.PrepareBuildsOnlyAsync`)
+- DS만 받을 때는 기존 DS 프로세스를 종료하지 않음 (실행 경로와 구분)
+- **다운로드**와 **게임 실행**은 작업 중 서로 비활성화되어 중복 실행 방지
+- 상단 버튼 순서: **빌드목록 새로고침 → 다운로드 → 게임 실행**
+
+### ✅ GameStarter 탭 — 클라이언트 실행 옵션 기본값
+- 시작 시 및 **Reset** 시 기본 인자:  
+  `-trace=NetChannel,Cpu,Frame,Bookmark -tracefile -statnamedevents`  
+  (`GameBuildLauncher.DefaultClientLaunchArgs`)
+
+---
 ## 🆕 v17 변경 사항 요약
 
 ### ✅ 버전
@@ -296,9 +313,10 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - **빌드 타입**: All(기본) / Development / Shipping — All이면 두 타입 통합 표시, **Config는 WIN(클라이언트) 기준** (v15)
 - **DS O/X**: Jenkins 빌드 번호 우선, DS 실제 파일명으로 다운로드 (v15)
 - **실행 대상**: 클라이언트 / DS 체크박스 (클라이언트 기본 체크, 둘 다 동시 선택 가능)
+- **다운로드** 버튼 (v18): 동일 선택으로 ZIP **다운로드·압축 해제만** (실행 없음). 버튼 순서: 새로고침 → 다운로드 → 게임 실행
 - **게임 실행** 버튼: 선택에 따라 클라이언트만 / DS만 / 둘 다 다운로드·실행 (v11). ZIP 다운로드 중 진행 문구에 **현재/총 용량** 표시 (v17, Engine 탭과 동일 규칙)
-- 둘 다 미체크 시 경고 후 실행하지 않음
-- **클라이언트 실행 옵션**: 비어 있으면 인자 없음, Reset은 비우기 (v15). **DS 실행 옵션** (v14): `GWServer.exe` 인자 편집·Reset, 비어 있으면 기본값, 멀티라인은 줄바꿈만 공백으로 합침. 상세는 **v14·v15 변경 사항** 참고.
+- 둘 다 미체크 시 경고 후 실행·다운로드하지 않음
+- **클라이언트 실행 옵션** (v18): 기본·Reset 시 `-trace=NetChannel,Cpu,Frame,Bookmark -tracefile -statnamedevents`. 내용을 지우면 인자 없음으로 실행. **DS 실행 옵션** (v14): `GWServer.exe` 인자 편집·Reset, 비어 있으면 기본값, 멀티라인은 줄바꿈만 공백으로 합침. 상세는 **v14·v15·v18 변경 사항** 참고.
 - **캐시**: 로컬 캐시 경로 표시 + **캐시 경로 변경**, **캐시 삭제**, **바로가기**(탐색기 열기, v12) 버튼 (v11에서 상단 옵션 메뉴에서 이전)
 - **unpacked 재사용**: 이미 압축 해제된 폴더가 있으면 삭제·재압축 해제 없이 바로 실행 (v11, 실행 시간 단축)
 
@@ -451,6 +469,7 @@ GWServer.exe /GWBattleRoyale/Maps/L_BR_Proto -log -port=7777
 - 실행 파일(GW.exe) 검색  
 - 실행 인자 구성 및 프로세스 실행  
 - (v17) 다운로드 진행 콜백 메시지에 **현재/총 용량** 문자열 포함 (`DownloadProgressFormatter` 사용)
+- (v18) `PrepareBuildsOnlyAsync`: 다운로드·압축 해제만 수행 / `DefaultClientLaunchArgs` 클라이언트 기본 실행 인자
 
 #### ✔ DownloadProgressFormatter.cs (v17)
 - 다운로드 진행 UI용: 받은 바이트·총 바이트를 동일 단위(총 ≥1GiB → GB, 미만 → MB)로 포맷
@@ -667,6 +686,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v18 | 2026-04-10 | GameStarter 다운로드 전용 버튼·실행과 버튼 순서(다운로드→게임 실행); 클라 기본 인자 trace(`DefaultClientLaunchArgs`); `PrepareBuildsOnlyAsync` |
 | v17 | 2026-03-31 | 다운로드 진행률에 용량(현재/총) 표시 — Engine·GameStarter; 총 ≥1GiB는 GB·미만은 MB·소수 2자리; `DownloadProgressFormatter.cs` 추가 |
 | v16 | 2026-03-25 | 배포 서버 IIS→Nginx URL 전환 (`/installed/`, `/builds/`, `/launcher/`); `InstalledBuildServices`·`GameBuildLauncher`·`BuildListService`·`Run_GWLauncher`·`Jenkinsfile` 반영; README 배포 URL·예시 문서 갱신 |
 | v15 | 2026-03-25 | GameStarter: 빌드 목록 All·Config는 클라 기준·DS는 빌드번호/실제 DS 파일명 매칭; 클라 실행 옵션 비우면 무인자·Reset/기본 -log 제거; 실행 예외 처리 보강 |

@@ -70,6 +70,7 @@ namespace BravoGameLauncherGui
             TbP4Workspace.Text = new DirectoryInfo(Environment.CurrentDirectory).Name;
 
             TxtCachePath.Text = _launcher.RootDownloadDir;
+            TbGameStarterArgs.Text = GameBuildLauncher.DefaultClientLaunchArgs;
             AppendLog("=== GW Launcher (GUI) ===");
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
             AppendLog(string.Empty);
@@ -126,6 +127,11 @@ namespace BravoGameLauncherGui
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
             await RunSelectedBuildAsync();
+        }
+
+        private async void BtnDownloadBuild_Click(object sender, RoutedEventArgs e)
+        {
+            await DownloadSelectedBuildOnlyAsync();
         }
 
         /// <summary>지정한 TextBox에 로그 메시지를 추가하고 맨 아래로 스크롤합니다.</summary>
@@ -761,7 +767,7 @@ namespace BravoGameLauncherGui
 
         private void BtnGameStarterArgsReset_Click(object sender, RoutedEventArgs e)
         {
-            TbGameStarterArgs.Text = string.Empty;
+            TbGameStarterArgs.Text = GameBuildLauncher.DefaultClientLaunchArgs;
         }
 
         private void BtnGameStarterDsArgsReset_Click(object sender, RoutedEventArgs e)
@@ -1117,6 +1123,7 @@ namespace BravoGameLauncherGui
 
             // 게임 실행 전까지 버튼 비활성화 (중복 실행 방지)
             BtnRun.IsEnabled = false;
+            BtnDownloadBuild.IsEnabled = false;
 
             try
             {
@@ -1156,6 +1163,55 @@ namespace BravoGameLauncherGui
             finally
             {
                 BtnRun.IsEnabled = true;
+                BtnDownloadBuild.IsEnabled = true;
+                SetGameStarterProgress(false, 0, null);
+            }
+        }
+
+        private async Task DownloadSelectedBuildOnlyAsync()
+        {
+            if (LvBuilds.SelectedItem is not ServerBuildItem selected)
+            {
+                AppendLog("[WARN] 다운로드할 빌드를 선택하세요.");
+                return;
+            }
+
+            bool wantClient = CbRunClient.IsChecked == true;
+            bool wantDS = CbRunDS.IsChecked == true;
+
+            if (!wantClient && !wantDS)
+            {
+                AppendLog("[WARN] 클라이언트 또는 DS 중 하나 이상을 선택한 뒤 다운로드를 눌러주세요.");
+                MessageBox.Show("클라이언트 또는 DS 중 하나 이상을 선택한 뒤 다운로드해주세요.", "다운로드 대상 선택", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            BtnRun.IsEnabled = false;
+            BtnDownloadBuild.IsEnabled = false;
+
+            try
+            {
+                string winZip = selected.FileName;
+                string dsZip = !string.IsNullOrWhiteSpace(selected.DsFileName)
+                    ? selected.DsFileName
+                    : Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
+
+                await _launcher.PrepareBuildsOnlyAsync(winZip, dsZip, wantClient, wantDS, ReportGameStarterProgress);
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[ERROR] 다운로드 중 오류가 발생했습니다.");
+                AppendLog(ex.Message);
+                MessageBox.Show(
+                    $"다운로드 중 오류가 발생했습니다.\n\n{ex.Message}",
+                    "다운로드 오류",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnRun.IsEnabled = true;
+                BtnDownloadBuild.IsEnabled = true;
                 SetGameStarterProgress(false, 0, null);
             }
         }
