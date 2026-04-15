@@ -31,6 +31,21 @@
   (`GameBuildLauncher.DefaultClientLaunchArgs`)
 
 ---
+## 🆕 v19 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v19** (`LauncherVersionInfo.Version`)
+
+### ✅ GameStarter 탭 — DS 컬럼(O/X) 및 짝 DS 파일명 (`MainWindow.xaml.cs`)
+- 동일 **Jenkins 빌드 번호**에 DS ZIP이 여러 개(Development / Shipping / Test 등) 올라갈 수 있음. 이전에는 번호당 **첫 번째 DS만** 보아 Shipping/Test 행에서 DS가 잘못 `X`로만 나오는 문제가 있었음.
+- **현재 동작**: 해당 번호의 DS 목록 가운데 **클라이언트(WIN)와 유효 Config가 같은 항목**만 짝으로 선택.
+  - **유효 Config**: `builds.json`의 `config`가 비어 있지 않으면 그 값, 비어 있으면 파일명에서 `_Development_` / `_Shipping_` 여부로 추정(그 외 `Unknown`).
+- **DS 컬럼 `O`**: 위 규칙으로 짝 DS가 있을 때만. **`X`**: 짝 없음 또는 Config 불일치.
+- **`ServerBuildItem.DsFileName`**: `O`일 때만 서버의 실제 DS `fileName`을 넣음. `X`이면 빈 문자열 — Config 불일치 시 **Development DS zip이 잘못 붙지 않도록** 함.
+- Jenkins 번호로 Config 일치 DS를 못 찾으면, 기존과 같이 **`클라이언트 zip stem + "_DS"`** basename으로 DS 후보를 찾고, 여기서도 Config가 같을 때만 짝으로 인정.
+- **다운로드 / 게임 실행**: 선택 행의 `FileName`(WIN)과 `DsFileName`(비어 있으면 `stem_DS.zip` fallback)을 그대로 `GameBuildLauncher`에 넘겨 ZIP URL `{버전}/WIN|DS/{파일명}`이 선택한 빌드·Config와 일치하도록 유지.
+
+---
 ## 🆕 v17 변경 사항 요약
 
 ### ✅ 버전
@@ -65,8 +80,7 @@
 - **빌드 타입** 콤보: **All**(기본) / **Development** / **Shipping**
   - **All**: Shipping·Development 빌드를 한 목록에 시간순으로 표시.
   - **Config** 컬럼 값은 항상 **클라이언트(WIN) 빌드 기준** (예: 클라는 Shipping, DS만 Development여도 행에는 `Shipping` 표시).
-- **DS 컬럼(O/X)**: 동일 **Jenkins 빌드 번호**로 DS 목록에 항목이 있으면 `O`. 없으면 기존 **파일명 `클라이언트베이스_DS`** 규칙으로 fallback.
-- **실행 시 DS ZIP**: 위 매칭으로 서버에 올라온 **실제 DS `fileName`**을 사용 (클라/DS 설정명이 달라도 잘못된 추측 파일명으로 404 나는 문제 방지).
+- **DS 컬럼(O/X) (v15 당시)**: Jenkins 번호·파일명으로 DS 존재만 판별. **v19**에서 동일 번호에 DS가 여러 개일 때 **클라이언트와 Config가 같은 DS**만 `O`이고 `DsFileName`에 정확한 DS `fileName`을 넣도록 변경됨(아래 **v19** 참고).
 
 ### ✅ GameStarter 탭 — 클라이언트 실행 옵션
 - 입력란을 **비운 채** 게임 실행 시: `GW.exe`에 **추가 인자 없음** (이전처럼 기본 `-log` 등 자동 삽입 없음).
@@ -311,7 +325,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 ### 🔸 GameStarter 탭
 - Jenkins `builds.json` 기반 빌드 목록
 - **빌드 타입**: All(기본) / Development / Shipping — All이면 두 타입 통합 표시, **Config는 WIN(클라이언트) 기준** (v15)
-- **DS O/X**: Jenkins 빌드 번호 우선, DS 실제 파일명으로 다운로드 (v15)
+- **DS O/X·짝 DS**: 동일 Jenkins 번호에 DS가 여러 개면 **클라이언트와 Config가 같은 DS**만 `O`, `DsFileName`에 서버 `fileName` 저장 (v19). 없으면 basename `stem_DS` fallback 후에도 Config 일치할 때만 짝 인정.
 - **실행 대상**: 클라이언트 / DS 체크박스 (클라이언트 기본 체크, 둘 다 동시 선택 가능)
 - **다운로드** 버튼 (v18): 동일 선택으로 ZIP **다운로드·압축 해제만** (실행 없음). 버튼 순서: 새로고침 → 다운로드 → 게임 실행
 - **게임 실행** 버튼: 선택에 따라 클라이언트만 / DS만 / 둘 다 다운로드·실행 (v11). ZIP 다운로드 중 진행 문구에 **현재/총 용량** 표시 (v17, Engine 탭과 동일 규칙)
@@ -387,10 +401,10 @@ GW Launcher v2에서 반영된 핵심 변경 사항입니다.
 
 ## ✅ 빌드 목록 개선
 - Jenkins `builds.json`의 플랫폼 구조(`WIN`/`DS`)를 기준으로 빌드 목록을 표시합니다.
-- **DS 컬럼 `O/X` (현행 v15)**:
-  - 우선 **동일 Jenkins 빌드 번호**로 DS 플랫폼에 항목이 있는지 판별.
-  - 없으면 **동일 파일명 + `_DS`** 규칙으로 fallback.
-  - 예: `GW_v0.0.1_CL2443_Development_20251227112732.zip` → DS: `..._Development_..._DS.zip` (또는 같은 빌드 번호의 DS 항목)
+- **DS 컬럼 `O/X` (현행 v19)**:
+  - **동일 Jenkins 빌드 번호**의 DS 후보가 여러 개면, **클라이언트(WIN)와 유효 Config가 같은 DS**만 `O`.
+  - 번호로 못 찾으면 **클라이언트 stem + `_DS`** basename으로 DS 후보를 찾고, 여기서도 Config 일치 시만 `O`.
+  - 예: `..._Shipping_....zip` 행 → `..._Shipping_..._DS.zip`과 짝(같은 Jenkins·같은 Config).
 
 ## ✅ Local 실행 시 DS 자동 처리 (요구사항 2 + 3)
 - **Local 실행**: DS가 존재(O)하면 **DS와 클라이언트를 함께 다운로드/압축해제**하고 실행합니다.
@@ -449,6 +463,7 @@ GWServer.exe /GWBattleRoyale/Maps/L_BR_Proto -log -port=7777
 - Jenkins 빌드 서버에서 게임 빌드 ZIP 목록 로드  
 - 로컬 캐시에 ZIP 다운로드 / 압축 해제 / 실행  
 - 빌드 타입 필터(All / Development / Shipping), Config는 클라이언트(WIN) 기준 표시 (v15)  
+- DS 짝: Jenkins 번호당 DS 다중 시 **Config 일치** DS만 O 및 `DsFileName` 지정 (v19)  
 - 실행 옵션(Local / Server / Windowed)  
 - Jenkins 빌드 번호 포함한 빌드 목록 표시  
 - **서버 패치 기반 업데이트를 대비한 정수 버전 구조 포함 (`LauncherVersionInfo.Version`)**
@@ -686,6 +701,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v19 | 2026-04-15 | GameStarter: 동일 Jenkins 번호에 DS 여러 개일 때 **Config 일치** DS만 DS열 O·`DsFileName` 설정; basename fallback에도 Config 검증 |
 | v18 | 2026-04-10 | GameStarter 다운로드 전용 버튼·실행과 버튼 순서(다운로드→게임 실행); 클라 기본 인자 trace(`DefaultClientLaunchArgs`); `PrepareBuildsOnlyAsync` |
 | v17 | 2026-03-31 | 다운로드 진행률에 용량(현재/총) 표시 — Engine·GameStarter; 총 ≥1GiB는 GB·미만은 MB·소수 2자리; `DownloadProgressFormatter.cs` 추가 |
 | v16 | 2026-03-25 | 배포 서버 IIS→Nginx URL 전환 (`/installed/`, `/builds/`, `/launcher/`); `InstalledBuildServices`·`GameBuildLauncher`·`BuildListService`·`Run_GWLauncher`·`Jenkinsfile` 반영; README 배포 URL·예시 문서 갱신 |

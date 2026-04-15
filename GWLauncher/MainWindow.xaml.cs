@@ -286,20 +286,16 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
-                // DS 존재 여부 빠른 조회용.
-                // 1) Jenkins BuildNo 매칭 우선: 클라이언트/DS Config가 달라도 같은 빌드 번호면 DS 존재로 판단.
-                // 2) 레거시 fallback: 파일명 기반(baseName + "_DS") 매칭.
+                // DS 조회: Jenkins 번호당 DS가 여러 개(Development/Shipping/…)일 수 있으므로 Lookup 사용.
+                // 짝은 (1) 같은 Jenkins 번호의 DS 중 Config가 클라이언트와 같은 것 (2) 없으면 baseName+"_DS" fallback.
                 var dsByBuildNo = dsBuilds
                     .Where(b => b.JenkinsBuildNumber > 0 && !string.IsNullOrWhiteSpace(b.FileName))
-                    .GroupBy(b => b.JenkinsBuildNumber)
-                    .ToDictionary(g => g.Key, g => g.First().FileName);
+                    .ToLookup(b => b.JenkinsBuildNumber);
 
-                var dsNameSet = new HashSet<string>(
-                    dsBuilds
-                        .Where(b => !string.IsNullOrWhiteSpace(b.FileName))
-                        .Select(b => Path.GetFileNameWithoutExtension(b.FileName)),
-                    StringComparer.OrdinalIgnoreCase
-                );
+                var dsByBaseName = dsBuilds
+                    .Where(b => !string.IsNullOrWhiteSpace(b.FileName))
+                    .GroupBy(b => Path.GetFileNameWithoutExtension(b.FileName), StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
                 // WIN: buildTime 기준 내림차순
                 winBuilds.Sort((a, b) =>
@@ -319,26 +315,48 @@ namespace BravoGameLauncherGui
                     var parse = ParseBuildInfoFromFileName(item.FileName);
                     var dt = item.BuildTime ?? parse.Timestamp ?? DateTime.MinValue;
 
-                    // DS 매칭 (파일명 기반)
+                    string clientConfig = !string.IsNullOrWhiteSpace(item.Config)
+                        ? item.Config
+                        : GetBuildConfigFromFileName(item.FileName);
+
                     var baseName = Path.GetFileNameWithoutExtension(item.FileName);
                     var expectedDsBaseName = baseName + "_DS";
-                    bool hasDs = (item.JenkinsBuildNumber > 0 && dsByBuildNo.ContainsKey(item.JenkinsBuildNumber))
-                              || dsNameSet.Contains(expectedDsBaseName);
-                    string matchedDsFileName = (item.JenkinsBuildNumber > 0 && dsByBuildNo.TryGetValue(item.JenkinsBuildNumber, out var byNo))
-                        ? byNo
-                        : (dsNameSet.Contains(expectedDsBaseName) ? expectedDsBaseName + ".zip" : string.Empty);
+
+                    BuildItem? pairedDs = null;
+                    if (item.JenkinsBuildNumber > 0)
+                    {
+                        pairedDs = dsByBuildNo[item.JenkinsBuildNumber].FirstOrDefault(d =>
+                        {
+                            string dcfg = !string.IsNullOrWhiteSpace(d.Config)
+                                ? d.Config
+                                : GetBuildConfigFromFileName(d.FileName);
+                            return string.Equals(clientConfig, dcfg, StringComparison.OrdinalIgnoreCase);
+                        });
+                    }
+
+                    if (pairedDs == null && dsByBaseName.TryGetValue(expectedDsBaseName, out var byName))
+                    {
+                        string dcfg = !string.IsNullOrWhiteSpace(byName.Config)
+                            ? byName.Config
+                            : GetBuildConfigFromFileName(byName.FileName);
+                        if (string.Equals(clientConfig, dcfg, StringComparison.OrdinalIgnoreCase))
+                            pairedDs = byName;
+                    }
+
+                    bool dsOk = pairedDs != null;
+                    string matchedDsFileName = pairedDs != null ? pairedDs.FileName : string.Empty;
 
                     _allBuilds.Add(new ServerBuildItem
                     {
                         BuildNo   = item.JenkinsBuildNumber,
                         FileName  = item.FileName,
                         DsFileName = matchedDsFileName,
-                        Config    = !string.IsNullOrWhiteSpace(item.Config) ? item.Config : GetBuildConfigFromFileName(item.FileName),
+                        Config    = clientConfig,
                         Version   = !string.IsNullOrWhiteSpace(item.Version) ? item.Version : (parse.Version ?? string.Empty),
                         CL        = item.Cl != 0 ? item.Cl : parse.CL,
                         BuildDate = dt == DateTime.MinValue ? "" : dt.ToString("yyyy-MM-dd"),
                         BuildTime = dt == DateTime.MinValue ? "" : dt.ToString("HH:mm:ss"),
-                        DS        = hasDs ? "O" : "X",
+                        DS        = dsOk ? "O" : "X",
                         SortKey   = dt
                     });
                 }
