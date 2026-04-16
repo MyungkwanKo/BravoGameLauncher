@@ -465,6 +465,9 @@
                                 <GridViewColumn Header="Time"
                                                 Width="100"
                                                 DisplayMemberBinding="{Binding BuildTime}" />
+                                <GridViewColumn Header="클라이언트"
+                                                Width="56"
+                                                DisplayMemberBinding="{Binding Client}" />
                                 <GridViewColumn Header="DS"
                                                 Width="50"
                                                 DisplayMemberBinding="{Binding DS}" />

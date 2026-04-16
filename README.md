@@ -14,6 +14,20 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
 
 ---
+## 🆕 v20 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v20** (`LauncherVersionInfo.Version`)
+
+### ✅ GameStarter 탭 — 빌드 목록(WIN·DS 합집합) 및 클라이언트 열 (`MainWindow.xaml`, `MainWindow.xaml.cs`)
+- **이전**: 서버 `builds.json`의 **WIN 목록만** 순회해 표시했기 때문에, WIN이 비어 있거나 특정 빌드가 **DS에만** 있으면 목록에 나오지 않음.
+- **현재**: **클라이언트(WIN) 또는 DS** 중 하나라도 있으면 같은 논리 빌드가 목록에 포함되도록 **합집합**으로 구성.
+  - WIN 행은 기존과 같이 생성하고, **어떤 WIN 행에도 짝으로 매칭되지 않은 DS ZIP**은 별도 행으로 추가(해당 행은 WIN `fileName` 없음, `DsFileName`만 설정).
+  - 목록은 **빌드 시각(`SortKey`) 내림차순**으로 한 번 정렬해 표시.
+- **컬럼 순서**: `Time` → **클라이언트**(`O`/`X`, WIN 패키지 유무) → **DS**(`O`/`X`, v19 규칙의 짝 DS 유무). DS만 있는 행은 클라이언트 `X`, DS `O`.
+- **실행·다운로드**: 선택 행에 **WIN 패키지가 없는데** 클라이언트 실행 또는 클라이언트 다운로드가 켜져 있으면 안내 메시지 후 진행하지 않음(DS만 받거나 DS만 실행할 때는 클라이언트 체크 해제).
+
+---
 ## 🆕 v18 변경 사항 요약
 
 ### ✅ 버전
@@ -324,7 +338,8 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 
 ### 🔸 GameStarter 탭
 - Jenkins `builds.json` 기반 빌드 목록
-- **빌드 타입**: All(기본) / Development / Shipping — All이면 두 타입 통합 표시, **Config는 WIN(클라이언트) 기준** (v15)
+- **빌드 타입**: All(기본) / Development / Shipping — All이면 두 타입 통합 표시, **Config는 WIN(클라이언트) 기준** (v15). **DS만 있는 행**은 해당 DS의 Config로 필터·표시 (v20).
+- **목록 구성 (v20)**: WIN 목록과 **WIN에 짝으로 쓰이지 않은 DS**를 합쳐 표시. **클라이언트·DS 열** 각각 `O`/`X`.
 - **DS O/X·짝 DS**: 동일 Jenkins 번호에 DS가 여러 개면 **클라이언트와 Config가 같은 DS**만 `O`, `DsFileName`에 서버 `fileName` 저장 (v19). 없으면 basename `stem_DS` fallback 후에도 Config 일치할 때만 짝 인정.
 - **실행 대상**: 클라이언트 / DS 체크박스 (클라이언트 기본 체크, 둘 다 동시 선택 가능)
 - **다운로드** 버튼 (v18): 동일 선택으로 ZIP **다운로드·압축 해제만** (실행 없음). 버튼 순서: 새로고침 → 다운로드 → 게임 실행
@@ -701,6 +716,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v20 | 2026-04-16 | GameStarter: 빌드 목록 **WIN·DS 합집합**(DS만 있어도 표시); **클라이언트(O/X)** 열 추가; WIN 없는 행에서 클라이언트 실행·다운로드 선택 시 안내 |
 | v19 | 2026-04-15 | GameStarter: 동일 Jenkins 번호에 DS 여러 개일 때 **Config 일치** DS만 DS열 O·`DsFileName` 설정; basename fallback에도 Config 검증 |
 | v18 | 2026-04-10 | GameStarter 다운로드 전용 버튼·실행과 버튼 순서(다운로드→게임 실행); 클라 기본 인자 trace(`DefaultClientLaunchArgs`); `PrepareBuildsOnlyAsync` |
 | v17 | 2026-03-31 | 다운로드 진행률에 용량(현재/총) 표시 — Engine·GameStarter; 총 ≥1GiB는 GB·미만은 MB·소수 2자리; `DownloadProgressFormatter.cs` 추가 |

@@ -19,7 +19,7 @@ namespace BravoGameLauncherGui
         private readonly AppSettings _settings;
         private readonly GameBuildLauncher _launcher;
 
-        // 서버에서 받은 전체 빌드 목록 (WIN 기준)
+        // 서버에서 받은 전체 빌드 목록 (WIN·DS 합집합, 동일 DS는 WIN 행에 페어링된 경우 DS 전용 행에서 제외)
         private List<ServerBuildItem> _allBuilds = new();
 
         private class ServerBuildItem
@@ -32,7 +32,8 @@ namespace BravoGameLauncherGui
             public int    CL        { get; set; }
             public string BuildDate { get; set; } = string.Empty; // yyyy-MM-dd
             public string BuildTime { get; set; } = string.Empty; // HH:mm:ss
-            public string DS        { get; set; } = "x";           // O / X
+            public string Client    { get; set; } = "X";         // 클라이언트(WIN) O / X
+            public string DS        { get; set; } = "x";           // DS O / X
             public DateTime SortKey { get; set; }                 // 내림차순 정렬용
         }
 
@@ -275,12 +276,16 @@ namespace BravoGameLauncherGui
                 }
 
                 // 클라이언트(WIN) / DS 목록 추출
-                var winBuilds = result.Platforms.TryGetValue("WIN", out var win) ? win.Builds : new List<BuildItem>();
-                var dsBuilds  = result.Platforms.TryGetValue("DS", out var ds)  ? ds.Builds  : new List<BuildItem>();
+                var winBuilds = result.Platforms.TryGetValue("WIN", out var win) && win?.Builds != null
+                    ? win.Builds
+                    : new List<BuildItem>();
+                var dsBuilds = result.Platforms.TryGetValue("DS", out var ds) && ds?.Builds != null
+                    ? ds.Builds
+                    : new List<BuildItem>();
 
-                if (winBuilds == null || winBuilds.Count == 0)
+                if (winBuilds.Count == 0 && dsBuilds.Count == 0)
                 {
-                    AppendLog("[WARN] 서버 WIN 빌드 리스트가 비어 있습니다.");
+                    AppendLog("[WARN] 서버 WIN·DS 빌드 리스트가 모두 비어 있습니다.");
                     _allBuilds.Clear();
                     RefreshBuildListUI();
                     return;
@@ -305,7 +310,12 @@ namespace BravoGameLauncherGui
                     return tb.CompareTo(ta);
                 });
 
+                var dsSorted = dsBuilds
+                    .OrderByDescending(b => b.BuildTime ?? DateTime.MinValue)
+                    .ToList();
+
                 _allBuilds = new List<ServerBuildItem>();
+                var dsPairedWithWin = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var item in winBuilds)
                 {
@@ -345,6 +355,8 @@ namespace BravoGameLauncherGui
 
                     bool dsOk = pairedDs != null;
                     string matchedDsFileName = pairedDs != null ? pairedDs.FileName : string.Empty;
+                    if (pairedDs != null && !string.IsNullOrWhiteSpace(pairedDs.FileName))
+                        dsPairedWithWin.Add(pairedDs.FileName);
 
                     _allBuilds.Add(new ServerBuildItem
                     {
@@ -356,10 +368,46 @@ namespace BravoGameLauncherGui
                         CL        = item.Cl != 0 ? item.Cl : parse.CL,
                         BuildDate = dt == DateTime.MinValue ? "" : dt.ToString("yyyy-MM-dd"),
                         BuildTime = dt == DateTime.MinValue ? "" : dt.ToString("HH:mm:ss"),
+                        Client    = "O",
                         DS        = dsOk ? "O" : "X",
                         SortKey   = dt
                     });
                 }
+
+                // WIN에 매칭되지 않은 DS만 별도 행으로 표시 (클라이언트 없음)
+                var dsOnlyRowsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var dsItem in dsSorted)
+                {
+                    if (string.IsNullOrWhiteSpace(dsItem.FileName))
+                        continue;
+                    if (dsPairedWithWin.Contains(dsItem.FileName))
+                        continue;
+                    if (!dsOnlyRowsSeen.Add(dsItem.FileName))
+                        continue;
+
+                    var dsParse = ParseBuildInfoFromFileName(dsItem.FileName);
+                    var dsDt = dsItem.BuildTime ?? dsParse.Timestamp ?? DateTime.MinValue;
+                    string dsConfig = !string.IsNullOrWhiteSpace(dsItem.Config)
+                        ? dsItem.Config
+                        : GetBuildConfigFromFileName(dsItem.FileName);
+
+                    _allBuilds.Add(new ServerBuildItem
+                    {
+                        BuildNo = dsItem.JenkinsBuildNumber,
+                        FileName = string.Empty,
+                        DsFileName = dsItem.FileName,
+                        Config = dsConfig,
+                        Version = !string.IsNullOrWhiteSpace(dsItem.Version) ? dsItem.Version : (dsParse.Version ?? string.Empty),
+                        CL = dsItem.Cl != 0 ? dsItem.Cl : dsParse.CL,
+                        BuildDate = dsDt == DateTime.MinValue ? "" : dsDt.ToString("yyyy-MM-dd"),
+                        BuildTime = dsDt == DateTime.MinValue ? "" : dsDt.ToString("HH:mm:ss"),
+                        Client = "X",
+                        DS = "O",
+                        SortKey = dsDt
+                    });
+                }
+
+                _allBuilds = _allBuilds.OrderByDescending(b => b.SortKey).ToList();
 
                 AppendLog($"[INFO] 서버 빌드 리스트 {_allBuilds.Count}개 로드 완료.");
                 RefreshBuildListUI();
@@ -1139,6 +1187,17 @@ namespace BravoGameLauncherGui
                 return;
             }
 
+            if (runClient && string.IsNullOrWhiteSpace(selected.FileName))
+            {
+                AppendLog("[WARN] 선택한 빌드에는 클라이언트(WIN) 패키지가 없습니다. 클라이언트 실행을 끄거나 다른 빌드를 선택하세요.");
+                MessageBox.Show(
+                    "선택한 빌드에는 클라이언트(WIN) 패키지가 없습니다.\nDS만 있는 빌드에서는 클라이언트 실행을 해제하세요.",
+                    "실행 대상",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             // 게임 실행 전까지 버튼 비활성화 (중복 실행 방지)
             BtnRun.IsEnabled = false;
             BtnDownloadBuild.IsEnabled = false;
@@ -1201,6 +1260,17 @@ namespace BravoGameLauncherGui
             {
                 AppendLog("[WARN] 클라이언트 또는 DS 중 하나 이상을 선택한 뒤 다운로드를 눌러주세요.");
                 MessageBox.Show("클라이언트 또는 DS 중 하나 이상을 선택한 뒤 다운로드해주세요.", "다운로드 대상 선택", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (wantClient && string.IsNullOrWhiteSpace(selected.FileName))
+            {
+                AppendLog("[WARN] 선택한 빌드에는 클라이언트(WIN) 패키지가 없습니다. 클라이언트 다운로드를 끄거나 다른 빌드를 선택하세요.");
+                MessageBox.Show(
+                    "선택한 빌드에는 클라이언트(WIN) 패키지가 없습니다.\nDS만 있는 빌드에서는 클라이언트 다운로드를 해제하세요.",
+                    "다운로드 대상",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
