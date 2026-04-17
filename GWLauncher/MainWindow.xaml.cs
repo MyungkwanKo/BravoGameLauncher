@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Text;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 
 namespace BravoGameLauncherGui
 {
@@ -148,7 +149,50 @@ namespace BravoGameLauncherGui
 
         private void AppendLog(string message) => AppendToLog(TxtLog, message);
         private void AppendEngineLog(string message) => AppendToLog(TxtEngineLog, message);
-        private void AppendSetupP4Log(string message) => AppendToLog(TxtSetupP4Log, message);           
+        private void AppendSetupP4Log(string message) => AppendToLog(TxtSetupP4Log, message);
+
+        /// <summary>GameStarter 장시간 작업 중: 탭 내 조작·다른 탭 이동을 막습니다.</summary>
+        private void SetGameStarterInteractionLocked(bool locked)
+        {
+            bool en = !locked;
+            if (CmbBuildType != null) CmbBuildType.IsEnabled = en;
+            if (BtnRefreshFromServer != null) BtnRefreshFromServer.IsEnabled = en;
+            if (BtnDownloadBuild != null) BtnDownloadBuild.IsEnabled = en;
+            if (BtnRun != null) BtnRun.IsEnabled = en;
+            if (CbWindowed != null) CbWindowed.IsEnabled = en;
+            if (CbRunClient != null) CbRunClient.IsEnabled = en;
+            if (CbRunDS != null) CbRunDS.IsEnabled = en;
+            if (BtnGameStarterArgsReset != null) BtnGameStarterArgsReset.IsEnabled = en;
+            if (BtnGameStarterDsArgsReset != null) BtnGameStarterDsArgsReset.IsEnabled = en;
+            if (BtnChangeCachePath != null) BtnChangeCachePath.IsEnabled = en;
+            if (BtnClearCache != null) BtnClearCache.IsEnabled = en;
+            if (BtnOpenCachePath != null) BtnOpenCachePath.IsEnabled = en;
+            if (TbGameStarterArgs != null) TbGameStarterArgs.IsEnabled = en;
+            if (TbGameStarterDsArgs != null) TbGameStarterDsArgs.IsEnabled = en;
+            if (LvBuilds != null) LvBuilds.IsEnabled = en;
+
+            if (TabItemEngine != null) TabItemEngine.IsEnabled = en;
+            if (TabItemSetupP4 != null) TabItemSetupP4.IsEnabled = en;
+            if (TabItemGWEditor != null) TabItemGWEditor.IsEnabled = en;
+            if (TabItemGameStarter != null) TabItemGameStarter.IsEnabled = true;
+        }
+
+        /// <summary>GWEditor 장시간 작업 중: 해당 탭 버튼·인자 입력·다른 탭 이동을 막습니다.</summary>
+        private void SetGWEditorInteractionLocked(bool locked)
+        {
+            bool en = !locked;
+            if (BtnGWEditorRefresh != null) BtnGWEditorRefresh.IsEnabled = en;
+            if (BtnRunGWEditor != null) BtnRunGWEditor.IsEnabled = en;
+            if (BtnGWEditorSync != null) BtnGWEditorSync.IsEnabled = en;
+            if (BtnGWEditorLocalRollback != null) BtnGWEditorLocalRollback.IsEnabled = en;
+            if (BtnGWEditorArgsReset != null) BtnGWEditorArgsReset.IsEnabled = en;
+            if (TbGWEditorArgs != null) TbGWEditorArgs.IsEnabled = en;
+
+            if (TabItemEngine != null) TabItemEngine.IsEnabled = en;
+            if (TabItemSetupP4 != null) TabItemSetupP4.IsEnabled = en;
+            if (TabItemGameStarter != null) TabItemGameStarter.IsEnabled = en;
+            if (TabItemGWEditor != null) TabItemGWEditor.IsEnabled = true;
+        }
 
         private void MenuChangeCachePath_Click(object sender, RoutedEventArgs e)
         {
@@ -174,7 +218,7 @@ namespace BravoGameLauncherGui
             AppendLog($"[INFO] 캐시 경로가 변경되었습니다 → {newPath}");
         }
 
-        private void MenuClearCache_Click(object sender, RoutedEventArgs e)
+        private async void MenuClearCache_Click(object sender, RoutedEventArgs e)
         {
             var result = MessageBox.Show(
                 $"캐시 폴더 전체를 삭제합니다.\n\n경로: {_launcher.RootDownloadDir}\n\n계속하시겠습니까?",
@@ -184,22 +228,30 @@ namespace BravoGameLauncherGui
 
             if (result != MessageBoxResult.Yes) return;
 
+            SetGameStarterInteractionLocked(true);
+            // 비활성화가 그려지기 전에 동기 삭제가 끝나면 체감이 없음 → 한 틱 양보 후 같은 스레드에서 삭제
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+
+            string dir = _launcher.RootDownloadDir;
             try
             {
-                if (Directory.Exists(_launcher.RootDownloadDir))
-                {
-                    Directory.Delete(_launcher.RootDownloadDir, recursive: true);
-                    AppendLog("[INFO] 캐시 폴더를 삭제했습니다.");
-                }
-                else
+                if (!Directory.Exists(dir))
                 {
                     AppendLog("[INFO] 삭제할 캐시 폴더가 없습니다.");
+                    return;
                 }
+
+                Directory.Delete(dir, recursive: true);
+                AppendLog("[INFO] 캐시 폴더를 삭제했습니다.");
             }
             catch (Exception ex)
             {
                 AppendLog("[ERROR] 캐시 삭제 중 오류가 발생했습니다.");
                 AppendLog(ex.Message);
+            }
+            finally
+            {
+                SetGameStarterInteractionLocked(false);
             }
         }
 
@@ -253,13 +305,15 @@ namespace BravoGameLauncherGui
 
         private async void BtnRefreshFromServer_Click(object sender, RoutedEventArgs e)
         {
-            await RefreshFromServerAsync();
+            await RefreshFromServerAsync(lockGameStarterInteraction: true);
         }
 
         // ====== (1번 기능 핵심) 서버 목록 로드 + DS 존재 여부 계산 ======
-        private async Task RefreshFromServerAsync()
+        private async Task RefreshFromServerAsync(bool lockGameStarterInteraction = false)
         {
-            if (BtnRefreshFromServer != null)
+            if (lockGameStarterInteraction)
+                SetGameStarterInteractionLocked(true);
+            else if (BtnRefreshFromServer != null)
                 BtnRefreshFromServer.IsEnabled = false;
 
             AppendLog("[INFO] 서버에서 빌드 리스트를 가져오는 중...");
@@ -419,7 +473,9 @@ namespace BravoGameLauncherGui
             }
             finally
             {
-                if (BtnRefreshFromServer != null)
+                if (lockGameStarterInteraction)
+                    SetGameStarterInteractionLocked(false);
+                else if (BtnRefreshFromServer != null)
                     BtnRefreshFromServer.IsEnabled = true;
             }
         }
@@ -1033,9 +1089,10 @@ namespace BravoGameLauncherGui
 
         private async void BtnGWEditorSync_Click(object sender, RoutedEventArgs e)
         {
-            BtnGWEditorSync.IsEnabled = false;
-            BtnGWEditorRefresh.IsEnabled = false;
+            if (BtnGWEditorSync != null)
+                BtnGWEditorSync.IsEnabled = false;
 
+            bool gwEditorFullLock = false;
             try
             {
                 TxtGWEditorLog.Clear();
@@ -1062,6 +1119,9 @@ namespace BravoGameLauncherGui
                     return;
                 }
 
+                SetGWEditorInteractionLocked(true);
+                gwEditorFullLock = true;
+
                 AppendGWEditorLog("=== p4 sync 시작 ===");
                 var (localCL, buildCL, needSync, status, _) = await QueryP4SyncClStateAsync(ws, root, AppendGWEditorLog);
 
@@ -1087,7 +1147,8 @@ namespace BravoGameLauncherGui
             }
             finally
             {
-                BtnGWEditorRefresh.IsEnabled = true;
+                if (gwEditorFullLock)
+                    SetGWEditorInteractionLocked(false);
                 try { await RefreshGWEditorP4InfoAsync(); }
                 catch { if (BtnGWEditorSync != null) BtnGWEditorSync.IsEnabled = false; }
             }
@@ -1130,9 +1191,7 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            BtnGWEditorLocalRollback.IsEnabled = false;
-            BtnGWEditorRefresh.IsEnabled = false;
-
+            SetGWEditorInteractionLocked(true);
             try
             {
                 AppendGWEditorLog($"=== Local Rollback: p4 sync //...@{buildCL} ===");
@@ -1144,7 +1203,7 @@ namespace BravoGameLauncherGui
             }
             finally
             {
-                BtnGWEditorRefresh.IsEnabled = true;
+                SetGWEditorInteractionLocked(false);
                 try { await RefreshGWEditorP4InfoAsync(); }
                 catch { }
             }
@@ -1198,9 +1257,7 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            // 게임 실행 전까지 버튼 비활성화 (중복 실행 방지)
-            BtnRun.IsEnabled = false;
-            BtnDownloadBuild.IsEnabled = false;
+            SetGameStarterInteractionLocked(true);
 
             try
             {
@@ -1239,8 +1296,7 @@ namespace BravoGameLauncherGui
             }
             finally
             {
-                BtnRun.IsEnabled = true;
-                BtnDownloadBuild.IsEnabled = true;
+                SetGameStarterInteractionLocked(false);
                 SetGameStarterProgress(false, 0, null);
             }
         }
@@ -1274,8 +1330,7 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            BtnRun.IsEnabled = false;
-            BtnDownloadBuild.IsEnabled = false;
+            SetGameStarterInteractionLocked(true);
 
             try
             {
@@ -1298,8 +1353,7 @@ namespace BravoGameLauncherGui
             }
             finally
             {
-                BtnRun.IsEnabled = true;
-                BtnDownloadBuild.IsEnabled = true;
+                SetGameStarterInteractionLocked(false);
                 SetGameStarterProgress(false, 0, null);
             }
         }

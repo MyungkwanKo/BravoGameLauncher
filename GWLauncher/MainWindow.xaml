@@ -44,14 +44,15 @@
         </Grid>
 
         <!-- 좌측 탭 메뉴 -->
-        <TabControl Grid.Row="1"
+        <TabControl x:Name="MainLauncherTabs"
+                    Grid.Row="1"
                     TabStripPlacement="Left"
                     SelectedIndex="2"
                     Margin="0"
                     SelectionChanged="MainTab_SelectionChanged">
 
             <!-- 0) Engine -->
-            <TabItem Header="Engine">
+            <TabItem x:Name="TabItemEngine" Header="Engine">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <Grid Margin="10">
                         <Grid.RowDefinitions>
@@ -143,7 +144,7 @@
             </TabItem>
 
             <!-- 1) Setup_p4 -->
-            <TabItem Header="Setup p4">
+            <TabItem x:Name="TabItemSetupP4" Header="Setup p4">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -209,7 +210,7 @@
             </TabItem>
 
             <!-- 2) GWEditor (통합: p4 sync 포함) -->
-            <TabItem Header="GWEditor">
+            <TabItem x:Name="TabItemGWEditor" Header="GWEditor">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -306,7 +307,7 @@
 
 
             <!-- 3) GameStarter (v2 UI 그대로 유지) -->
-            <TabItem Header="GameStarter">
+            <TabItem x:Name="TabItemGameStarter" Header="GameStarter">
                 <Grid Margin="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

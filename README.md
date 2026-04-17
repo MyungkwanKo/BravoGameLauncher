@@ -14,6 +14,27 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
 
 ---
+## 🆕 v21 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v21** (`LauncherVersionInfo.Version`)
+
+### ✅ 장시간 작업 중 UI 잠금 (`MainWindow.xaml`, `MainWindow.xaml.cs`)
+- **목적**: 한 기능이 끝나기 전에 다른 버튼·탭을 눌러 중복 동작·경쟁 상태가 나는 것을 줄입니다.
+- **탭 컨트롤**: `MainLauncherTabs` 및 각 탭 `TabItemEngine` / `TabItemSetupP4` / `TabItemGWEditor` / `TabItemGameStarter`에 `x:Name`을 두어 잠금 시 다른 탭 헤더만 비활성화합니다.
+
+### ✅ GameStarter 탭
+- **캐시 삭제**, **빌드목록 새로고침**, **다운로드**, **게임 실행**이 진행되는 동안: 해당 탭의 빌드 타입·버튼·체크박스·인자·캐시 버튼·빌드 목록 등 **조작 가능한 요소를 비활성화**합니다.
+- 동일 기간 동안 **Engine / Setup p4 / GWEditor 탭으로 전환할 수 없습니다** (GameStarter 탭 헤더만 유지).
+- 빌드목록 새로고침은 사용자가 버튼으로 눌렀을 때만 위 잠금을 적용하고, 창 최초 로드 시 서버 목록 자동 로드는 기존처럼 전체 탭을 잠그지 않습니다.
+- **캐시 삭제**: 확인 후 `Dispatcher.Yield(ApplicationIdle)`로 비활성화가 화면에 반영된 뒤, 캐시 루트 폴더를 **동기** `Directory.Delete`(recursive)로 삭제합니다. 캐시 내 파일을 **클라이언트·DS 등이 사용 중**이면 삭제가 실패할 수 있으므로, 삭제 전 관련 프로세스를 종료해 주세요.
+
+### ✅ GWEditor 탭
+- **Sync**: 확인 후 동기화가 끝날 때까지 **새로고침·Editor실행·Sync·Local Rollback·인자 Reset·인자 입력**을 비활성화하고, **다른 탭으로 이동할 수 없습니다**.
+- **Local Rollback**: 확인 후 `p4 sync`가 끝날 때까지 위와 동일하게 **GWEditor 탭 전체 조작·타 탭 전환**을 비활성화합니다.
+- Sync는 확인 전까지 **Sync 버튼만** 잠시 비활성화하여 중복 클릭을 막고, 취소·검증 실패 시에는 `finally`에서 정보 갱신 후 기존 규칙대로 버튼 상태가 복구됩니다.
+
+---
 ## 🆕 v20 변경 사항 요약
 
 ### ✅ 버전
@@ -326,9 +347,10 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - Workspace(P4CLIENT) 사용자 직접 입력
 - `p4 set` 결과 + `p4 info` 전체 로그 출력
 
-### 🔸 GWEditor 탭 (v13: p4_sync 통합)
+### 🔸 GWEditor 탭 (v13: p4_sync 통합, v21: 장시간 작업 중 UI 잠금)
 - **메뉴 표시**: Workspace(P4CLIENT), Project (.uproject), Editor (UnrealEditor.exe), **Local CL**, **GW_ProjectBuild CL**, Sync 필요 여부 (상태 아이콘은 이름칸 우측)
 - **실행 버튼** (구분선으로 메뉴와 분리): 새로고침 | Editor실행 / Sync | Local Rollback
+- **v21**: Sync·Local Rollback 확인 후 실행 중에는 위 버튼·에디터 인자·타 탭 전환이 비활성화됩니다.
 - **Editor 실행**: Client Root 기준 Unreal Editor 실행
   - Engine\Binaries\Win64\UnrealEditor.exe, GW\GW.uproject
   - 실행 기본 옵션: **-nocompile** (v11에서 -ddc=noshared 제거)
@@ -337,6 +359,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - 탭 진입 시 자동 정보 갱신
 
 ### 🔸 GameStarter 탭
+- **v21**: 캐시 삭제·목록 새로고침(버튼)·다운로드·게임 실행 중에는 탭 내 주요 컨트롤과 **다른 탭**이 비활성화됩니다.
 - Jenkins `builds.json` 기반 빌드 목록
 - **빌드 타입**: All(기본) / Development / Shipping — All이면 두 타입 통합 표시, **Config는 WIN(클라이언트) 기준** (v15). **DS만 있는 행**은 해당 DS의 Config로 필터·표시 (v20).
 - **목록 구성 (v20)**: WIN 목록과 **WIN에 짝으로 쓰이지 않은 DS**를 합쳐 표시. **클라이언트·DS 열** 각각 `O`/`X`.
@@ -716,6 +739,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v21 | 2026-04-17 | GameStarter/GWEditor: 장시간 작업 중 **탭 내 버튼·입력 비활성화** 및 **다른 탭 전환 차단**; 캐시 삭제는 UI 한 틱 양보 후 동기 삭제(캐시 사용 중 프로세스 종료 필요 시 안내) |
 | v20 | 2026-04-16 | GameStarter: 빌드 목록 **WIN·DS 합집합**(DS만 있어도 표시); **클라이언트(O/X)** 열 추가; WIN 없는 행에서 클라이언트 실행·다운로드 선택 시 안내 |
 | v19 | 2026-04-15 | GameStarter: 동일 Jenkins 번호에 DS 여러 개일 때 **Config 일치** DS만 DS열 O·`DsFileName` 설정; basename fallback에도 Config 검증 |
 | v18 | 2026-04-10 | GameStarter 다운로드 전용 버튼·실행과 버튼 순서(다운로드→게임 실행); 클라 기본 인자 trace(`DefaultClientLaunchArgs`); `PrepareBuildsOnlyAsync` |
