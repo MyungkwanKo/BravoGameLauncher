@@ -218,7 +218,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 상단: WS/Project/Editor + Local CL/Build CL + Sync 필요여부 | 구분선 | 버튼(2x2) -->
+                    <!-- 상단: WS/Project/Editor + Local CL/Build CL + Sync 필요여부 + DataTableGenerate CL | 구분선 | 버튼 -->
                     <Grid Grid.Row="0" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -228,28 +228,29 @@
 
                         <!-- 행 단위 줄맞춤: 라벨(0열) | 내용(1열) -->
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="40"/>
+                            <RowDefinition Height="32"/>
+                            <RowDefinition Height="32"/>
+                            <RowDefinition Height="32"/>
+                            <RowDefinition Height="32"/>
+                            <RowDefinition Height="32"/>
+                            <RowDefinition Height="56"/>
+                            <RowDefinition Height="32"/>
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Workspace(P4CLIENT)" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TbGWEditorWorkspace" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+                        <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TbGWEditorWorkspace" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Project (.uproject)" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TbGWEditorProjectPath" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+                        <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TbGWEditorProjectPath" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Editor (UnrealEditor.exe)" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TbGWEditorEditorExe" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+                        <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TbGWEditorEditorExe" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Local CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TbGWEditorLocalCL" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+                        <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TbGWEditorLocalCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="GW_ProjectBuild CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="4" Grid.Column="1" x:Name="TbGWEditorBuildCL" IsReadOnly="True" Height="24" VerticalAlignment="Center"/>
+                        <TextBox  Grid.Row="4" Grid.Column="1" x:Name="TbGWEditorBuildCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
                         <!-- Sync 필요여부: 이름칸에 라벨+상태 아이콘, 내용칸은 메시지만(다른 박스와 동일 너비) -->
                         <StackPanel Grid.Row="5" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
@@ -258,26 +259,36 @@
                                      VerticalAlignment="Center" Fill="Gray"/>
                         </StackPanel>
                         <TextBox Grid.Row="5" Grid.Column="1" x:Name="TbGWEditorSyncStatus"
-                            IsReadOnly="True" MinHeight="24" Height="40" VerticalAlignment="Center"
+                            IsReadOnly="True" MinHeight="26" Height="52" VerticalAlignment="Center"
                             TextWrapping="Wrap" VerticalContentAlignment="Top" Margin="0,0,0,0"/>
 
-                        <!-- 구분선 + 실행 버튼 2x2 -->
-                        <Border Grid.Row="0" Grid.RowSpan="6" Grid.Column="2"
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="DataTableGenerate CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox Grid.Row="6" Grid.Column="1" x:Name="TbGWEditorDataTableGenerateCLs"
+                            IsReadOnly="True" Height="26" VerticalAlignment="Center"
+                            TextWrapping="Wrap" VerticalContentAlignment="Top" Margin="0,0,0,0"/>
+
+                        <!-- 구분선 + 실행 버튼 3줄 -->
+                        <Border Grid.Row="0" Grid.RowSpan="7" Grid.Column="2"
                                 BorderBrush="#DDDDDD" BorderThickness="1,0,0,0" Margin="12,0,0,0" Padding="12,0,0,0">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" Orientation="Horizontal">
-                                    <Button x:Name="BtnGWEditorRefresh" Content="새로고침" Width="90" Margin="0,0,8,0"
+                                    <Button x:Name="BtnGWEditorRefresh" Content="새로고침" Width="110" Margin="0,0,8,0"
                                             Click="BtnGWEditorRefresh_Click"/>
-                                    <Button x:Name="BtnRunGWEditor" Content="Editor실행" Width="90"
+                                    <Button x:Name="BtnRunGWEditor" Content="Editor실행" Width="110"
                                             Click="BtnRunGWEditor_Click"/>
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,0">
-                                    <Button x:Name="BtnGWEditorSync" Content="Sync" Width="90" Margin="0,0,8,0"
+                                    <Button x:Name="BtnGWEditorSync" Content="Sync" Width="110" Margin="0,0,8,0"
                                             Click="BtnGWEditorSync_Click"/>
+                                    <Button x:Name="BtnGWEditorDataSync" Content="Data Sync" Width="110"
+                                            Click="BtnGWEditorDataSync_Click"/>
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
                                     <Button x:Name="BtnGWEditorLocalRollback" Content="Local Rollback" Width="110"
                                             Click="BtnGWEditorLocalRollback_Click"/>
                                 </StackPanel>

@@ -14,6 +14,32 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
 
 ---
+## 🆕 v22 변경 사항 요약 (#PJTGW-1945)
+
+### ✅ 버전
+- 런처 버전 **v22** (`LauncherVersionInfo.Version`)
+
+### ✅ GWEditor 탭 — Data Sync / `#DataTableGenerate`
+- **Data Sync** 버튼을 **Sync**(GW_ProjectBuild 기준)와 **분리**했습니다.
+- **DataTableGenerate CL** 필드: Local CL 이후 서버에서 **`gw_build`** 가 submit한 변경 중, **`#DataTableGenerate`** 가 Description에 포함된 CL 번호를 모두 표시합니다.
+  - 조회 depot 범위: **`//GW/dev/...`** 및 **`//streamDepot/dev/DataTable/...`** (두 경로 모두에서 submitted `changes` 병합 후 태그 필터).
+- **Data Sync 실행**: 태그가 붙은 CL만 **순차** 처리합니다. 각 CL마다 `p4 describe -s`로 해당 변경의 파일 목록(`//depot/file#rev`)을 얻은 뒤, 위 두 depot 경로에 속하는 파일만 `p4 sync`합니다.  
+  → 경로 전체를 `@CL` 한 번에 맞추는 방식과 달리, **태그 CL에 실제로 포함된 파일만** 반영되도록 합니다.
+
+### ✅ GWEditor 탭 — Sync 버튼 정책 (Project 빌드와 Local CL 불일치)
+- **Sync** 버튼은 `GW_ProjectBuild CL`이 유효하면 **Local CL과 무관하게 항상 활성화**됩니다.
+- 클릭 시 항상 **`p4 sync ...@{GW_ProjectBuild CL}`** 로 Project 빌드 기준 동기화를 수행합니다.  
+  → Data Sync만 수행해 Local CL만 올라간 경우에도, Sync가 비활성화되어 Project 바이너리를 못 맞추는 문제를 피합니다.
+- **Sync 필요여부** 표시는 참고용으로 유지되며, Sync 버튼 활성화와는 분리됩니다.
+
+### ✅ GWEditor 탭 — UI
+- 실행 버튼 **3줄** 배치: **새로고침 · Editor실행** / **Sync · Data Sync** / **Local Rollback** (동일 너비).
+- **Sync 필요여부** 행 높이 조정(글자 잘림 완화). **DataTableGenerate CL** 입력란 추가(Local CL 행과 동일 높이).
+
+### ✅ GWEditor 탭 — v21과의 관계
+- 장시간 작업 중 **GWEditor 탭 잠금·타 탭 전환 제한** 등 v21 동작은 그대로 유지됩니다.
+
+---
 ## 🆕 v21 변경 사항 요약
 
 ### ✅ 버전
@@ -289,7 +315,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 |----|----|
 | Engine | Installed Build(엔진) 다운로드/설치 (latest.json 기반) |
 | Setup_p4 | Perforce 환경 변수 설정 |
-| GWEditor | Unreal Editor 실행 + Local/Build CL 표시, Sync, Local Rollback (v13에서 p4_sync 통합) |
+| GWEditor | Unreal Editor 실행 + Local/Build CL, DataTableGenerate CL, Sync / Data Sync / Local Rollback (v22 Data Sync·경로별 동기화·Sync 정책, v13에서 p4_sync 통합) |
 | GameStarter | 기존 v2 게임/DS 실행 기능 |
 
 ### ✅ 용어 재정의
@@ -347,14 +373,15 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - Workspace(P4CLIENT) 사용자 직접 입력
 - `p4 set` 결과 + `p4 info` 전체 로그 출력
 
-### 🔸 GWEditor 탭 (v13: p4_sync 통합, v21: 장시간 작업 중 UI 잠금)
-- **메뉴 표시**: Workspace(P4CLIENT), Project (.uproject), Editor (UnrealEditor.exe), **Local CL**, **GW_ProjectBuild CL**, Sync 필요 여부 (상태 아이콘은 이름칸 우측)
-- **실행 버튼** (구분선으로 메뉴와 분리): 새로고침 | Editor실행 / Sync | Local Rollback
-- **v21**: Sync·Local Rollback 확인 후 실행 중에는 위 버튼·에디터 인자·타 탭 전환이 비활성화됩니다.
+### 🔸 GWEditor 탭 (v13: p4_sync 통합, v21: 장시간 작업 중 UI 잠금, v22: Data Sync·Sync 정책)
+- **메뉴 표시**: Workspace(P4CLIENT), Project (.uproject), Editor (UnrealEditor.exe), **Local CL**, **GW_ProjectBuild CL**, Sync 필요 여부, **DataTableGenerate CL** (상태 아이콘은 Sync 필요여부 이름칸 우측)
+- **실행 버튼** (구분선으로 메뉴와 분리, **v22**): 새로고침 | Editor실행 / **Sync | Data Sync** / Local Rollback (3줄·동일 너비)
+- **v21**: Sync·Data Sync·Local Rollback 확인 후 실행 중에는 위 버튼·에디터 인자·타 탭 전환이 비활성화됩니다.
 - **Editor 실행**: Client Root 기준 Unreal Editor 실행
   - Engine\Binaries\Win64\UnrealEditor.exe, GW\GW.uproject
   - 실행 기본 옵션: **-nocompile** (v11에서 -ddc=noshared 제거)
-- **Sync**: GW_ProjectBuild CL까지 동기화 (sync 할 빌드가 있을 때만 버튼 활성화)
+- **Sync** (**v22**): `GW_ProjectBuild CL`이 있으면 Local CL과 무관하게 버튼 활성화. 클릭 시 **`p4 sync ...@{GW_ProjectBuild CL}`** (Project 빌드 기준).
+- **Data Sync** (**v22**): `#DataTableGenerate` 태그가 있는 submit CL만 순차 처리. 각 CL은 describe로 얻은 **해당 변경 파일** 중 `//GW/dev/...`·`//streamDepot/dev/DataTable/...` 만 sync.
 - **Local Rollback**: Local CL > GW_ProjectBuild CL일 때만 활성화, 로컬을 Build CL 상태로 되돌림 (`p4 sync //...@buildCL`)
 - 탭 진입 시 자동 정보 갱신
 
@@ -429,7 +456,7 @@ dotnet publish -c Release -r win-x64 ^
 | GameStarter | 게임/DS 실행 |
 | Run_GWLauncher | 런처 스타터 |
 | Setup_p4 | Perforce 초기 설정 |
-| GWEditor | Unreal Editor 실행 + Sync / Local Rollback (v13에서 p4_sync 통합) |
+| GWEditor | Unreal Editor 실행 + Sync / Data Sync / Local Rollback (v22, v13에서 p4_sync 통합) |
 
 
 ---
@@ -739,6 +766,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v22 | 2026-04-28 | GWEditor: **Data Sync** 분리, `#DataTableGenerate` CL 표시·경로별 파일 sync(`//GW/dev/...`, `//streamDepot/dev/DataTable/...`), **Sync**는 ProjectBuild CL 기준 항상 수행 가능(Local CL과 무관). UI 3줄 버튼·레이아웃 조정 (#PJTGW-1945) |
 | v21 | 2026-04-17 | GameStarter/GWEditor: 장시간 작업 중 **탭 내 버튼·입력 비활성화** 및 **다른 탭 전환 차단**; 캐시 삭제는 UI 한 틱 양보 후 동기 삭제(캐시 사용 중 프로세스 종료 필요 시 안내) |
 | v20 | 2026-04-16 | GameStarter: 빌드 목록 **WIN·DS 합집합**(DS만 있어도 표시); **클라이언트(O/X)** 열 추가; WIN 없는 행에서 클라이언트 실행·다운로드 선택 시 안내 |
 | v19 | 2026-04-15 | GameStarter: 동일 Jenkins 번호에 DS 여러 개일 때 **Config 일치** DS만 DS열 O·`DsFileName` 설정; basename fallback에도 Config 검증 |
