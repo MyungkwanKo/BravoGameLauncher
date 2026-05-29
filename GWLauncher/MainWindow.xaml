@@ -233,6 +233,7 @@
                             <RowDefinition Height="32"/>
                             <RowDefinition Height="32"/>
                             <RowDefinition Height="32"/>
+                            <RowDefinition Height="32"/>
                             <RowDefinition Height="56"/>
                             <RowDefinition Height="32"/>
                         </Grid.RowDefinitions>
@@ -240,8 +241,8 @@
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Workspace(P4CLIENT)" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TbGWEditorWorkspace" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Project (.uproject)" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TbGWEditorProjectPath" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Client stream" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TbGWEditorClientStream" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Editor (UnrealEditor.exe)" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TbGWEditorEditorExe" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
@@ -249,26 +250,29 @@
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Local CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TbGWEditorLocalCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="GW_ProjectBuild CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="4" Grid.Column="1" x:Name="TbGWEditorBuildCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Stream Latest CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="4" Grid.Column="1" x:Name="TbGWEditorStreamLatestCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="GW_ProjectBuild CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="5" Grid.Column="1" x:Name="TbGWEditorBuildCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
                         <!-- Sync 필요여부: 이름칸에 라벨+상태 아이콘, 내용칸은 메시지만(다른 박스와 동일 너비) -->
-                        <StackPanel Grid.Row="5" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Grid.Row="6" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="Sync 필요여부" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <Ellipse x:Name="GWEditorSyncStatusIndicator" Width="12" Height="12"
                                      VerticalAlignment="Center" Fill="Gray"/>
                         </StackPanel>
-                        <TextBox Grid.Row="5" Grid.Column="1" x:Name="TbGWEditorSyncStatus"
+                        <TextBox Grid.Row="6" Grid.Column="1" x:Name="TbGWEditorSyncStatus"
                             IsReadOnly="True" MinHeight="26" Height="52" VerticalAlignment="Center"
                             TextWrapping="Wrap" VerticalContentAlignment="Top" Margin="0,0,0,0"/>
 
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="DataTableGenerate CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox Grid.Row="6" Grid.Column="1" x:Name="TbGWEditorDataTableGenerateCLs"
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="DataTableGenerate CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox Grid.Row="7" Grid.Column="1" x:Name="TbGWEditorDataTableGenerateCLs"
                             IsReadOnly="True" Height="26" VerticalAlignment="Center"
                             TextWrapping="Wrap" VerticalContentAlignment="Top" Margin="0,0,0,0"/>
 
                         <!-- 구분선 + 실행 버튼 3줄 -->
-                        <Border Grid.Row="0" Grid.RowSpan="7" Grid.Column="2"
+                        <Border Grid.Row="0" Grid.RowSpan="8" Grid.Column="2"
                                 BorderBrush="#DDDDDD" BorderThickness="1,0,0,0" Margin="12,0,0,0" Padding="12,0,0,0">
                             <Grid>
                                 <Grid.RowDefinitions>

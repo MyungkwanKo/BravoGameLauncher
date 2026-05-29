@@ -14,6 +14,38 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
 
 ---
+## 🆕 v23 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v23** (`LauncherVersionInfo.Version`)
+
+### ✅ GWEditor 탭 — 스트림(Depot)별 Sync 정책
+- P4 워크스페이스의 **clientStream**을 기준으로 Sync·Local Rollback 동작을 분기합니다.
+- **`//GWArt/ArtDev` (아트 스트림)**:
+  - **Sync 필요여부**: 메시지 **「아트 스트림 입니다.」** 고정, 상태 아이콘 초록(가능).
+  - **Sync** 버튼: **항상 활성화** (`GW_ProjectBuild CL`과 무관).
+  - **Local Rollback** 버튼: **항상 비활성화**.
+  - Sync 실행: ProjectBuild CL 기준이 아닌 **`p4 sync`** (스트림 헤드 동기화).
+- **`//GW/dev` (개발 스트림)** 및 **그 외 스트림**: v22와 동일 (ProjectBuild CL 기준 Sync·Local Rollback 정책).
+
+### ✅ GWEditor 탭 — 정보 표시
+- **Workspace(P4CLIENT)**: `{P4CLIENT} ({clientRoot})` 형식으로 표시  
+  - 예: `mk.ko_dev (E:\GW_P4\mk.ko_dev)`
+- **Client stream** (신규): `p4 -ztag info`의 clientStream + 구분 라벨  
+  - `//GW/dev` → `//GW/dev (개발 스트림)`  
+  - `//GWArt/ArtDev` → `//GWArt/ArtDev (아트 스트림)`  
+  - 그 외 → `{스트림명} (기타)`
+- **Stream Latest CL** (신규): 워크스페이스 스트림 서버의 최신 submitted CL (`p4 changes -m1 -S {stream}`)
+- **Project (.uproject)** UI 행 **삭제** — Editor 실행 시 `{clientRoot}\GW\GW.uproject` 경로는 내부에서 계산
+
+### ✅ GWEditor 탭 — CL 조회 정리
+- `p4 changes -m1` 공용 헬퍼(`QueryLatestChangeByArgsAsync`)로 **Local CL**·**Stream Latest CL** 조회를 통합.
+- 새로고침 시 **Local CL**은 한 번만 조회한 뒤 Build CL·Data Sync 판단에 재사용 (중복 p4 호출 제거).
+
+### ✅ GWEditor 탭 — v22와의 관계
+- Data Sync·Sync 버튼 3줄 배치·장시간 작업 중 UI 잠금(v21) 등 v22 이하 동작은 **개발 스트림 기준** 그대로 유지됩니다.
+
+---
 ## 🆕 v22 변경 사항 요약 (#PJTGW-1945)
 
 ### ✅ 버전
@@ -315,7 +347,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 |----|----|
 | Engine | Installed Build(엔진) 다운로드/설치 (latest.json 기반) |
 | Setup_p4 | Perforce 환경 변수 설정 |
-| GWEditor | Unreal Editor 실행 + Local/Build CL, DataTableGenerate CL, Sync / Data Sync / Local Rollback (v22 Data Sync·경로별 동기화·Sync 정책, v13에서 p4_sync 통합) |
+| GWEditor | Unreal Editor 실행 + Client stream / Stream Latest CL, Sync / Data Sync / Local Rollback (v23 스트림별 Sync·UI, v22 Data Sync·Sync 정책, v13에서 p4_sync 통합) |
 | GameStarter | 기존 v2 게임/DS 실행 기능 |
 
 ### ✅ 용어 재정의
@@ -373,16 +405,19 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - Workspace(P4CLIENT) 사용자 직접 입력
 - `p4 set` 결과 + `p4 info` 전체 로그 출력
 
-### 🔸 GWEditor 탭 (v13: p4_sync 통합, v21: 장시간 작업 중 UI 잠금, v22: Data Sync·Sync 정책)
-- **메뉴 표시**: Workspace(P4CLIENT), Project (.uproject), Editor (UnrealEditor.exe), **Local CL**, **GW_ProjectBuild CL**, Sync 필요 여부, **DataTableGenerate CL** (상태 아이콘은 Sync 필요여부 이름칸 우측)
+### 🔸 GWEditor 탭 (v13: p4_sync 통합, v21: 장시간 작업 중 UI 잠금, v22: Data Sync·Sync 정책, v23: 스트림별 Sync·정보 표시)
+- **메뉴 표시** (**v23**): **Workspace(P4CLIENT)** `{클라이언트명} ({clientRoot})`, **Client stream** `{스트림} ({구분})`, Editor (UnrealEditor.exe), **Local CL**, **Stream Latest CL**, **GW_ProjectBuild CL**, Sync 필요 여부, **DataTableGenerate CL** (상태 아이콘은 Sync 필요여부 이름칸 우측). Project (.uproject) 행은 UI에서 제거.
 - **실행 버튼** (구분선으로 메뉴와 분리, **v22**): 새로고침 | Editor실행 / **Sync | Data Sync** / Local Rollback (3줄·동일 너비)
 - **v21**: Sync·Data Sync·Local Rollback 확인 후 실행 중에는 위 버튼·에디터 인자·타 탭 전환이 비활성화됩니다.
 - **Editor 실행**: Client Root 기준 Unreal Editor 실행
-  - Engine\Binaries\Win64\UnrealEditor.exe, GW\GW.uproject
+  - Engine\Binaries\Win64\UnrealEditor.exe, `{clientRoot}\GW\GW.uproject` (내부 계산)
   - 실행 기본 옵션: **-nocompile** (v11에서 -ddc=noshared 제거)
-- **Sync** (**v22**): `GW_ProjectBuild CL`이 있으면 Local CL과 무관하게 버튼 활성화. 클릭 시 **`p4 sync ...@{GW_ProjectBuild CL}`** (Project 빌드 기준).
+- **Sync** (**v22**, **v23** 아트 스트림 분기):
+  - **개발·기타 스트림**: `GW_ProjectBuild CL`이 있으면 Local CL과 무관하게 버튼 활성화. 클릭 시 **`p4 sync ...@{GW_ProjectBuild CL}`**.
+  - **아트 스트림** (`//GWArt/ArtDev`): Sync **항상 활성**, Local Rollback **항상 비활성**, Sync 필요여부 **「아트 스트림 입니다.」**, 실행 시 **`p4 sync`**.
 - **Data Sync** (**v22**): `#DataTableGenerate` 태그가 있는 submit CL만 순차 처리. 각 CL은 describe로 얻은 **해당 변경 파일** 중 `//GW/dev/...`·`//streamDepot/dev/DataTable/...` 만 sync.
-- **Local Rollback**: Local CL > GW_ProjectBuild CL일 때만 활성화, 로컬을 Build CL 상태로 되돌림 (`p4 sync //...@buildCL`)
+- **Local Rollback**: Local CL > GW_ProjectBuild CL일 때만 활성화(아트 스트림 제외), 로컬을 Build CL 상태로 되돌림 (`p4 sync //...@buildCL`)
+- **Stream Latest CL** (**v23**): 워크스페이스 clientStream 서버 최신 CL 표시
 - 탭 진입 시 자동 정보 갱신
 
 ### 🔸 GameStarter 탭
@@ -456,7 +491,7 @@ dotnet publish -c Release -r win-x64 ^
 | GameStarter | 게임/DS 실행 |
 | Run_GWLauncher | 런처 스타터 |
 | Setup_p4 | Perforce 초기 설정 |
-| GWEditor | Unreal Editor 실행 + Sync / Data Sync / Local Rollback (v22, v13에서 p4_sync 통합) |
+| GWEditor | Unreal Editor 실행 + Sync / Data Sync / Local Rollback (v23 스트림별 Sync·UI, v22, v13에서 p4_sync 통합) |
 
 
 ---
@@ -766,6 +801,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v23 | 2026-05-29 | GWEditor: **스트림별 Sync 정책**(`//GWArt/ArtDev` 아트 스트림 — Sync 항상 가능·Local Rollback 비활성·「아트 스트림 입니다.」), **Client stream**·**Stream Latest CL** 표시, Workspace `{클라이언트} ({clientRoot})` 형식, Project UI 행 제거, CL 조회 공용화 |
 | v22 | 2026-04-28 | GWEditor: **Data Sync** 분리, `#DataTableGenerate` CL 표시·경로별 파일 sync(`//GW/dev/...`, `//streamDepot/dev/DataTable/...`), **Sync**는 ProjectBuild CL 기준 항상 수행 가능(Local CL과 무관). UI 3줄 버튼·레이아웃 조정 (#PJTGW-1945) |
 | v21 | 2026-04-17 | GameStarter/GWEditor: 장시간 작업 중 **탭 내 버튼·입력 비활성화** 및 **다른 탭 전환 차단**; 캐시 삭제는 UI 한 틱 양보 후 동기 삭제(캐시 사용 중 프로세스 종료 필요 시 안내) |
 | v20 | 2026-04-16 | GameStarter: 빌드 목록 **WIN·DS 합집합**(DS만 있어도 표시); **클라이언트(O/X)** 열 추가; WIN 없는 행에서 클라이언트 실행·다운로드 선택 시 안내 |

@@ -726,7 +726,7 @@ namespace BravoGameLauncherGui
         private async Task RefreshGWEditorP4InfoAsync()
         {
             TxtGWEditorLog.Clear();
-            AppendGWEditorLog("=== GWEditor: Workspace / Project / Editor 경로 확인 ===");
+            AppendGWEditorLog("=== GWEditor: Workspace / Editor 경로 확인 ===");
 
             var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", "-ztag info", onFatalLog: AppendGWEditorLog);
             if (exit != 0)
@@ -736,20 +736,24 @@ namespace BravoGameLauncherGui
                     AppendGWEditorLog(stderr.Trim());
 
                 TbGWEditorWorkspace.Text = "";
-                TbGWEditorProjectPath.Text = "";
+                TbGWEditorClientStream.Text = "";
                 TbGWEditorEditorExe.Text = "";
+                _gwEditorWorkspaceName = null;
+                _gwEditorClientRoot = null;
+                _gwEditorClientStream = null;
                 SetGWEditorSyncStatus("", 0);
+                SetGWEditorStreamLatestClText(-1);
                 SetGWEditorDataTableGenerateClText("");
                 if (BtnGWEditorDataSync != null) BtnGWEditorDataSync.IsEnabled = false;
                 return;
             }
 
-            var (ws, clientRoot, _) = ParseP4ZtagInfo(stdout);
-            TbGWEditorWorkspace.Text = ws;
-
-            // Project(.uproject) 경로는 항상 P4 clientRoot 기준
-            string uproject = Path.Combine(clientRoot, "GW", "GW.uproject");
-            TbGWEditorProjectPath.Text = uproject;
+            var (clientName, clientRoot, clientStream) = ParseP4ZtagInfo(stdout);
+            _gwEditorWorkspaceName = clientName;
+            _gwEditorClientRoot = clientRoot;
+            _gwEditorClientStream = clientStream;
+            TbGWEditorWorkspace.Text = FormatGWEditorWorkspaceDisplay(clientName, clientRoot);
+            SetGWEditorClientStreamText(clientStream);
 
             // Editor exe 경로는 Engine 탭 InstallRoot 기준 (Installed Build)
             string engineInstallRoot = TbEngineInstallRoot.Text?.Trim() ?? "";
@@ -757,17 +761,40 @@ namespace BravoGameLauncherGui
             TbGWEditorEditorExe.Text = editorExe;
             if (BtnGWEditorDataSync != null) BtnGWEditorDataSync.IsEnabled = true;
 
-            AppendGWEditorLog($"Workspace: {ws}");
-            AppendGWEditorLog($"Project: {uproject}");
+            AppendGWEditorLog($"Workspace: {TbGWEditorWorkspace.Text}");
+            string streamDisplay = FormatP4ClientStreamDisplay(clientStream);
+            AppendGWEditorLog(string.IsNullOrWhiteSpace(clientStream)
+                ? "Client stream: -"
+                : $"Client stream: {streamDisplay}");
+            string? uproject = GetGWEditorUprojectPath();
+            if (!string.IsNullOrWhiteSpace(uproject))
+                AppendGWEditorLog($"Project: {uproject}");
             AppendGWEditorLog($"Editor : {editorExe}");
 
-            // p4 sync 필요 여부 + Local CL / GW_ProjectBuild CL 표시 및 버튼 활성화
-            _gwEditorClientRoot = clientRoot;
-            var (localCL, buildCL, needSync, status, statusKind) = await QueryP4SyncClStateAsync(ws, clientRoot, log: null);
-            SetGWEditorSyncStatus(status, statusKind);
-            SetGWEditorClAndButtons(localCL, buildCL, needSync);
+            // Local / Stream Latest / Build CL — Local CL은 한 번만 조회해 공유
+            int localCL = await QueryLocalChangeAsync(clientName, clientRoot, log: null);
 
-            var (_, latestServerCL, targetCLs) = await QueryDataTableSyncTargetsAsync(ws, clientRoot, log: null);
+            int streamLatestCL = await QueryStreamLatestChangeAsync(clientStream, clientRoot, log: null);
+            SetGWEditorStreamLatestClText(streamLatestCL);
+            AppendGWEditorLog(streamLatestCL > 0
+                ? $"Stream Latest CL: {streamLatestCL}"
+                : "[WARN] Stream Latest CL 조회 실패");
+
+            if (IsArtDevP4Stream(clientStream))
+            {
+                SetGWEditorSyncStatus("아트 스트림 입니다.", 2);
+                SetGWEditorClAndButtons(localCL, -1, needSync: false, isArtDevStream: true);
+            }
+            else
+            {
+                var (buildCL, needSync, status, statusKind) =
+                    await QueryProjectBuildClStateAsync(clientRoot, localCL, log: null);
+                SetGWEditorSyncStatus(status, statusKind);
+                SetGWEditorClAndButtons(localCL, buildCL, needSync, isArtDevStream: false);
+            }
+
+            var (_, latestServerCL, targetCLs) =
+                await QueryDataTableSyncTargetsAsync(clientName, clientRoot, localCL, log: null);
             if (latestServerCL < 0)
                 SetGWEditorDataTableGenerateClText("조회 실패");
             else
@@ -803,8 +830,26 @@ namespace BravoGameLauncherGui
             });
         }
 
+        private void SetGWEditorStreamLatestClText(int streamLatestCL)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (TbGWEditorStreamLatestCL != null)
+                    TbGWEditorStreamLatestCL.Text = streamLatestCL > 0 ? streamLatestCL.ToString() : "-";
+            });
+        }
+
+        private void SetGWEditorClientStreamText(string? clientStream)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (TbGWEditorClientStream != null)
+                    TbGWEditorClientStream.Text = FormatP4ClientStreamDisplay(clientStream);
+            });
+        }
+
         /// <summary>GWEditor 통합 탭: Local CL / Build CL 표시, Sync / Local Rollback 버튼 활성화.</summary>
-        private void SetGWEditorClAndButtons(int localCL, int buildCL, bool needSync)
+        private void SetGWEditorClAndButtons(int localCL, int buildCL, bool needSync, bool isArtDevStream = false)
         {
             Dispatcher.Invoke(() =>
             {
@@ -813,13 +858,36 @@ namespace BravoGameLauncherGui
                 if (TbGWEditorBuildCL != null)
                     TbGWEditorBuildCL.Text = buildCL > 0 ? buildCL.ToString() : "-";
                 if (BtnGWEditorSync != null)
-                    BtnGWEditorSync.IsEnabled = buildCL > 0;
+                    BtnGWEditorSync.IsEnabled = isArtDevStream || buildCL > 0;
                 if (BtnGWEditorLocalRollback != null)
-                    BtnGWEditorLocalRollback.IsEnabled = buildCL > 0 && localCL > buildCL;
+                    BtnGWEditorLocalRollback.IsEnabled = !isArtDevStream && buildCL > 0 && localCL > buildCL;
             });
         }
 
+        private string? _gwEditorWorkspaceName;
         private string? _gwEditorClientRoot;
+        private string? _gwEditorClientStream;
+
+        private static string FormatGWEditorWorkspaceDisplay(string? clientName, string? clientRoot)
+        {
+            string name = clientName?.Trim() ?? "";
+            string root = clientRoot?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(root))
+                return "";
+            if (string.IsNullOrWhiteSpace(root))
+                return name;
+            if (string.IsNullOrWhiteSpace(name))
+                return root;
+            return $"{name} ({root})";
+        }
+
+        private string? GetGWEditorUprojectPath()
+        {
+            string root = _gwEditorClientRoot?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(root))
+                return null;
+            return Path.Combine(root, "GW", "GW.uproject");
+        }
 
 
         private async void BtnGWEditorRefresh_Click(object sender, RoutedEventArgs e)
@@ -831,8 +899,7 @@ namespace BravoGameLauncherGui
        
         private void BtnRunGWEditor_Click(object sender, RoutedEventArgs e)
         {
-            // UI에 표시된 "프로젝트 파일 경로"를 기준으로 실행
-            string uproject = TbGWEditorProjectPath.Text?.Trim() ?? "";
+            string? uproject = GetGWEditorUprojectPath();
             if (string.IsNullOrWhiteSpace(uproject) || !File.Exists(uproject))
             {
                 AppendGWEditorLog("[WARN] 프로젝트 파일(GW.uproject) 경로가 유효하지 않습니다: " + uproject);
@@ -989,6 +1056,8 @@ namespace BravoGameLauncherGui
         // ========================
         // GWEditor 통합 탭: CL 표시/버튼 제어 (QueryP4SyncClStateAsync 공용)
         // ========================
+        private const string P4_DEV_STREAM         = "//GW/dev";
+        private const string P4_ART_DEV_STREAM     = "//GWArt/ArtDev";
         private const string P4SYNC_TARGET_DEPOT   = "//GW/dev/...";
         /// <summary>DataTableGenerate 제출 CL 조회 시 추가로 스캔하는 depot (GW/dev 외 경로).</summary>
         private const string P4SYNC_DATATABLE_DEPOT_EXTRA = "//streamDepot/dev/DataTable/...";
@@ -1008,6 +1077,97 @@ namespace BravoGameLauncherGui
         {
             int idx = depotSpec.IndexOf("...", StringComparison.Ordinal);
             return idx >= 0 ? depotSpec[..idx] : depotSpec;
+        }
+
+        private static bool IsArtDevP4Stream(string? clientStream) =>
+            string.Equals(clientStream?.Trim(), P4_ART_DEV_STREAM, StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsDevP4Stream(string? clientStream) =>
+            string.Equals(clientStream?.Trim(), P4_DEV_STREAM, StringComparison.OrdinalIgnoreCase);
+
+        private static string GetP4StreamCategoryLabel(string? clientStream)
+        {
+            if (IsDevP4Stream(clientStream)) return "개발 스트림";
+            if (IsArtDevP4Stream(clientStream)) return "아트 스트림";
+            return "기타";
+        }
+
+        private static string FormatP4ClientStreamDisplay(string? clientStream)
+        {
+            string stream = clientStream?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(stream))
+                return "-";
+            return $"{stream} ({GetP4StreamCategoryLabel(stream)})";
+        }
+
+        /// <summary>p4 changes -m1 공용 실행. 실패 시 -1 (zeroOnFailure면 0).</summary>
+        private async Task<int> QueryLatestChangeByArgsAsync(
+            string changesArg,
+            string root,
+            Action<string>? log,
+            string queryLabel,
+            bool zeroOnFailure = false)
+        {
+            void LogMsg(string msg) => log?.Invoke(msg);
+            var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", $"changes -m1 {changesArg}", root);
+            if (exit != 0)
+            {
+                LogMsg($"[WARN] {queryLabel} 조회 실패 (ExitCode={exit})" +
+                       (zeroOnFailure ? ". LOCAL_CL=0 가정" : ""));
+                if (!string.IsNullOrWhiteSpace(stderr)) LogMsg("[ERR] " + stderr.Trim());
+                return zeroOnFailure ? 0 : -1;
+            }
+
+            int cl = ParseChangeNumber(stdout);
+            if (cl < 0)
+            {
+                LogMsg($"[WARN] {queryLabel} 파싱 실패");
+                return zeroOnFailure ? 0 : -1;
+            }
+
+            return cl;
+        }
+
+        /// <summary>로컬 워크스페이스 최신 CL (p4 changes -m1 @workspace).</summary>
+        private async Task<int> QueryLocalChangeAsync(string ws, string root, Action<string>? log = null)
+        {
+            void LogMsg(string msg) => log?.Invoke(msg);
+            if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
+            {
+                LogMsg("[WARN] Workspace/Client Root 확인 불가. LOCAL_CL=0 가정");
+                return 0;
+            }
+
+            LogMsg("[INFO] Local CL 조회 중...");
+            int localCL = await QueryLatestChangeByArgsAsync(
+                $"@{ws}", root, log, "Local CL", zeroOnFailure: true);
+            LogMsg($"- Local CL: {localCL}");
+            return localCL;
+        }
+
+        /// <summary>워크스페이스 스트림 서버의 최신 submitted CL (p4 changes -m1 -S stream).</summary>
+        private async Task<int> QueryStreamLatestChangeAsync(string? clientStream, string root, Action<string>? log = null)
+        {
+            void LogMsg(string msg) => log?.Invoke(msg);
+            string stream = clientStream?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(stream))
+            {
+                LogMsg("[WARN] clientStream이 없어 Stream Latest CL을 조회할 수 없습니다.");
+                return -1;
+            }
+
+            LogMsg($"[INFO] Stream Latest CL 조회 중... ({stream})");
+            int cl = await QueryLatestChangeByArgsAsync($"-S {stream}", root, log, "Stream Latest CL");
+            if (cl < 0)
+            {
+                string depotSpec = stream.EndsWith("/...", StringComparison.Ordinal) ? stream : $"{stream}/...";
+                LogMsg($"[DEBUG] -S 조회 실패, depot 경로로 재시도: {depotSpec}");
+                cl = await QueryLatestChangeByArgsAsync(depotSpec, root, log, "Stream Latest CL");
+            }
+
+            if (cl > 0)
+                LogMsg($"- Stream Latest CL: {cl}");
+            return cl;
         }
 
         private static bool IsDataSyncTargetDepotFile(string depotFileWithRevision)
@@ -1051,38 +1211,15 @@ namespace BravoGameLauncherGui
             return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
-        /// <summary>
-        /// Run 버튼에서 쓰는 방식 그대로: local 최신 CL 조회 + GW_ProjectBuild CL 조회/태그 스캔 + 비교.
-        /// 단, 여기서는 "sync 실행"은 하지 않고 "표시/판단"만 한다.
-        /// </summary>
-        private async Task<(int localCL, int buildCL, bool needSync, string status, int statusKind)> QueryP4SyncClStateAsync(
-            string ws, string root, Action<string>? log = null)
+        /// <summary>GW_ProjectBuild CL 조회·태그 스캔 후 Local CL과 비교 (Sync 필요여부 판단).</summary>
+        private async Task<(int buildCL, bool needSync, string status, int statusKind)> QueryProjectBuildClStateAsync(
+            string root, int localCL, Action<string>? log = null)
         {
             void LogMsg(string msg) => log?.Invoke(msg);
 
-            if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
-                return (0, -1, false, "Workspace/Client Root 확인 불가", 0);
+            if (string.IsNullOrWhiteSpace(root))
+                return (-1, false, "Workspace/Client Root 확인 불가", 0);
 
-            // [1] 로컬 최신 CL
-            LogMsg("");
-            LogMsg("[INFO] Local CL 조회 중...");
-            var (exitLocal, outLocal, errLocal) = await RunProcessCaptureAsync("p4", $"changes -m1 @{ws}", root);
-
-            int localCL = 0;
-            if (exitLocal != 0)
-            {
-                LogMsg($"[WARN] 로컬 최신 CL 조회 실패 (ExitCode={exitLocal}). LOCAL_CL=0 가정");
-                if (!string.IsNullOrWhiteSpace(errLocal)) LogMsg("[ERR] " + errLocal.Trim());
-                localCL = 0;
-            }
-            else
-            {
-                localCL = ParseChangeNumber(outLocal);
-                if (localCL < 0) localCL = 0;
-            }
-            LogMsg($"- Local CL: {localCL}");
-
-            // [2] GW_ProjectBuild CL scan (최근 N개)
             LogMsg("");
             LogMsg($"[INFO] GW_ProjectBuild CL scan (최근 {P4SYNC_PROJECTBUILD_SCAN_COUNT}개)...");
             var (exitCandidates, outCandidates, errCandidates) =
@@ -1093,7 +1230,7 @@ namespace BravoGameLauncherGui
             {
                 LogMsg($"[WARN] GW_ProjectBuild CL 조회 실패 (ExitCode={exitCandidates})");
                 if (!string.IsNullOrWhiteSpace(errCandidates)) LogMsg("[ERR] " + errCandidates.Trim());
-                return (localCL, -1, false, "GW_ProjectBuild CL 조회 실패", 0);
+                return (-1, false, "GW_ProjectBuild CL 조회 실패", 0);
             }
             else
             {
@@ -1107,7 +1244,7 @@ namespace BravoGameLauncherGui
                 if (candidateCLs.Count == 0)
                 {
                     LogMsg("[WARN] GW_ProjectBuild CL이 없습니다.");
-                    return (localCL, -1, false, "GW_ProjectBuild CL 없음", 0);
+                    return (-1, false, "GW_ProjectBuild CL 없음", 0);
                 }
 
                 foreach (var cl in candidateCLs)
@@ -1135,14 +1272,12 @@ namespace BravoGameLauncherGui
             if (buildCL <= 0)
             {
                 LogMsg($"[WARN] 최근 {P4SYNC_PROJECTBUILD_SCAN_COUNT}개 CL에서 태그({P4SYNC_TAG})를 찾지 못했습니다.");
-                return (localCL, -1, false, "태그 탐지 실패", 0);
-            }
-            else
-            {
-                LogMsg($"[INFO] GW_ProjectBuild CL: {buildCL}");
+                return (-1, false, "태그 탐지 실패", 0);
             }
 
-            // [3] 비교 (statusKind: 1=동기화필요, 2=동일, 3=주의)
+            LogMsg($"[INFO] GW_ProjectBuild CL: {buildCL}");
+
+            // Local CL vs Build CL 비교 (statusKind: 1=동기화필요, 2=동일, 3=주의)
             bool needSync = buildCL > localCL;
             string status;
             int statusKind;
@@ -1163,6 +1298,15 @@ namespace BravoGameLauncherGui
             }
 
             LogMsg($"[INFO] 비교 결과: {status} (Local={localCL}, Build={buildCL})");
+            return (buildCL, needSync, status, statusKind);
+        }
+
+        /// <summary>Local CL + GW_ProjectBuild CL + Sync 필요여부 (Sync 버튼 등 단독 호출용).</summary>
+        private async Task<(int localCL, int buildCL, bool needSync, string status, int statusKind)> QueryP4SyncClStateAsync(
+            string ws, string root, Action<string>? log = null)
+        {
+            int localCL = await QueryLocalChangeAsync(ws, root, log);
+            var (buildCL, needSync, status, statusKind) = await QueryProjectBuildClStateAsync(root, localCL, log);
             return (localCL, buildCL, needSync, status, statusKind);
         }
 
@@ -1175,8 +1319,9 @@ namespace BravoGameLauncherGui
             try
             {
                 TxtGWEditorLog.Clear();
-                string ws = (TbGWEditorWorkspace.Text ?? "").Trim();
+                string ws = _gwEditorWorkspaceName ?? "";
                 string root = _gwEditorClientRoot ?? "";
+                string workspaceDisplay = TbGWEditorWorkspace.Text?.Trim() ?? "";
 
                 if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
                 {
@@ -1187,7 +1332,7 @@ namespace BravoGameLauncherGui
                 }
 
                 var confirm = MessageBox.Show(
-                    $"아래 워크스페이스 기준으로 Sync를 진행합니다.\n\nWorkspace: {ws}\nClient Root: {root}\n\n진행할까요?",
+                    $"아래 워크스페이스 기준으로 Sync를 진행합니다.\n\n{workspaceDisplay}\n\n진행할까요?",
                     "p4 sync 확인",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
@@ -1202,24 +1347,42 @@ namespace BravoGameLauncherGui
                 gwEditorFullLock = true;
 
                 AppendGWEditorLog("=== p4 sync 시작 ===");
-                var (localCL, buildCL, _, _, _) = await QueryP4SyncClStateAsync(ws, root, AppendGWEditorLog);
-                if (buildCL <= 0)
+                if (IsArtDevP4Stream(_gwEditorClientStream))
                 {
-                    AppendGWEditorLog("[WARN] 유효한 GW_ProjectBuild CL을 찾지 못해 sync를 중단합니다.");
-                    return;
-                }
+                    int localCL = await QueryLocalChangeAsync(ws, root, AppendGWEditorLog);
+                    AppendGWEditorLog("");
+                    AppendGWEditorLog($"[INFO] ArtDev 스트림: p4 sync 실행 (Local CL={localCL})");
+                    int code = await RunProcessAsync("p4", "sync", AppendGWEditorLog, root);
+                    if (code != 0)
+                    {
+                        AppendGWEditorLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
+                        return;
+                    }
 
-                AppendGWEditorLog("");
-                AppendGWEditorLog($"[4/4] GW_ProjectBuild 기준 p4 sync ...@{buildCL} 실행 (Local CL={localCL})");
-                int code = await RunProcessAsync("p4", $"sync ...@{buildCL}", AppendGWEditorLog, root);
-                if (code != 0)
+                    AppendGWEditorLog("");
+                    AppendGWEditorLog("[OK] ArtDev 스트림 워크스페이스 동기화가 완료되었습니다.");
+                }
+                else
                 {
-                    AppendGWEditorLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
-                    return;
-                }
+                    var (localCL, buildCL, _, _, _) = await QueryP4SyncClStateAsync(ws, root, AppendGWEditorLog);
+                    if (buildCL <= 0)
+                    {
+                        AppendGWEditorLog("[WARN] 유효한 GW_ProjectBuild CL을 찾지 못해 sync를 중단합니다.");
+                        return;
+                    }
 
-                AppendGWEditorLog("");
-                AppendGWEditorLog($"[OK] 로컬 워크스페이스가 최신 GW_ProjectBuild CL {buildCL} 까지 동기화되었습니다.");
+                    AppendGWEditorLog("");
+                    AppendGWEditorLog($"[4/4] GW_ProjectBuild 기준 p4 sync ...@{buildCL} 실행 (Local CL={localCL})");
+                    int code = await RunProcessAsync("p4", $"sync ...@{buildCL}", AppendGWEditorLog, root);
+                    if (code != 0)
+                    {
+                        AppendGWEditorLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
+                        return;
+                    }
+
+                    AppendGWEditorLog("");
+                    AppendGWEditorLog($"[OK] 로컬 워크스페이스가 최신 GW_ProjectBuild CL {buildCL} 까지 동기화되었습니다.");
+                }
                 AppendGWEditorLog("=== p4 sync 완료 ===");
             }
             finally
@@ -1232,28 +1395,14 @@ namespace BravoGameLauncherGui
         }
 
         private async Task<(int localCL, int latestServerCL, List<int> targetCLs)> QueryDataTableSyncTargetsAsync(
-            string ws, string root, Action<string>? log = null)
+            string ws, string root, int? knownLocalCL = null, Action<string>? log = null)
         {
             void LogMsg(string msg) => log?.Invoke(msg);
 
             if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
                 return (0, -1, new List<int>());
 
-            LogMsg("");
-            LogMsg("[INFO] Local CL 조회 중...");
-            var (exitLocal, outLocal, errLocal) = await RunProcessCaptureAsync("p4", $"changes -m1 @{ws}", root);
-
-            int localCL = 0;
-            if (exitLocal != 0)
-            {
-                LogMsg($"[WARN] 로컬 최신 CL 조회 실패 (ExitCode={exitLocal}). LOCAL_CL=0 가정");
-                if (!string.IsNullOrWhiteSpace(errLocal)) LogMsg("[ERR] " + errLocal.Trim());
-            }
-            else
-            {
-                localCL = ParseChangeNumber(outLocal);
-                if (localCL < 0) localCL = 0;
-            }
+            int localCL = knownLocalCL ?? await QueryLocalChangeAsync(ws, root, log);
 
             int fromCL = Math.Max(localCL + 1, 1);
             LogMsg($"[INFO] gw_build submitted CL 조회 중... (Range: {fromCL},now)");
@@ -1333,8 +1482,9 @@ namespace BravoGameLauncherGui
             try
             {
                 TxtGWEditorLog.Clear();
-                string ws = (TbGWEditorWorkspace.Text ?? "").Trim();
+                string ws = _gwEditorWorkspaceName ?? "";
                 string root = _gwEditorClientRoot ?? "";
+                string workspaceDisplay = TbGWEditorWorkspace.Text?.Trim() ?? "";
 
                 if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
                 {
@@ -1345,7 +1495,7 @@ namespace BravoGameLauncherGui
                 }
 
                 var confirm = MessageBox.Show(
-                    $"아래 워크스페이스 기준으로 Data Sync를 진행합니다.\n\nWorkspace: {ws}\nClient Root: {root}\n\n진행할까요?",
+                    $"아래 워크스페이스 기준으로 Data Sync를 진행합니다.\n\n{workspaceDisplay}\n\n진행할까요?",
                     "Data Sync 확인",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
@@ -1360,7 +1510,8 @@ namespace BravoGameLauncherGui
                 gwEditorFullLock = true;
 
                 AppendGWEditorLog("=== Data Sync 시작 ===");
-                var (localCL, latestServerCL, targetCLs) = await QueryDataTableSyncTargetsAsync(ws, root, AppendGWEditorLog);
+                var (localCL, latestServerCL, targetCLs) =
+                    await QueryDataTableSyncTargetsAsync(ws, root, log: AppendGWEditorLog);
 
                 if (latestServerCL < 0)
                 {
