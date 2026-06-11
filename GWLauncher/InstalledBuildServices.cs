@@ -45,9 +45,12 @@ namespace BravoGameLauncherGui
 
         private const string InstalledBuildBaseUrl = "http://bravo-build.omnicraftlabs.co.kr/installed";
 
+        /// <summary>서버 배포 루트. 하위에 엔진 버전 폴더 없이 flat 배치.</summary>
+        public static string InstalledBuildLatestJsonUrl => $"{InstalledBuildBaseUrl}/latest.json";
+
         public static async Task<InstalledBuildLatest?> GetLatestAsync(string engineVersion, Action<string> log)
         {
-            string url = $"{InstalledBuildBaseUrl}/{engineVersion}/latest.json";
+            string url = InstalledBuildLatestJsonUrl;
             log($"[INFO] latest.json 요청: {url}");
 
             using var resp = await Http.GetAsync(url);
@@ -58,13 +61,52 @@ namespace BravoGameLauncherGui
             }
 
             var json = await resp.Content.ReadAsStringAsync();
+            if (json.Length > 0 && json[0] == '\uFEFF')
+                json = json.TrimStart('\uFEFF');
+
             var model = JsonSerializer.Deserialize<InstalledBuildLatest>(json);
             if (model == null)
             {
                 log("[ERROR] latest.json 파싱 실패");
                 return null;
             }
+
+            string requested = engineVersion?.Trim() ?? "";
+            string actual = model.engineVersion?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(requested) &&
+                !string.IsNullOrWhiteSpace(actual) &&
+                !string.Equals(actual, requested, StringComparison.OrdinalIgnoreCase))
+            {
+                log($"[WARN] latest.json engineVersion({actual}) ≠ 선택 버전({requested})");
+                return null;
+            }
+
+            string jsonZipUrl = model.zip?.url ?? "";
+            string resolvedZipUrl = ResolveInstalledBuildZipUrl(model);
+            if (!string.IsNullOrWhiteSpace(resolvedZipUrl))
+            {
+                if (!string.Equals(jsonZipUrl, resolvedZipUrl, StringComparison.OrdinalIgnoreCase))
+                    log($"[INFO] ZIP URL 보정: {jsonZipUrl} → {resolvedZipUrl}");
+                model.zip ??= new InstalledBuildZip();
+                model.zip.url = resolvedZipUrl;
+            }
+
             return model;
+        }
+
+        /// <summary>
+        /// flat 배치: /installed/{fileName} (엔진 버전 중간 경로 없음)
+        /// </summary>
+        public static string ResolveInstalledBuildZipUrl(InstalledBuildLatest latest)
+        {
+            string fileName = latest.zip?.fileName?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(fileName) && !string.IsNullOrWhiteSpace(latest.label))
+                fileName = $"{latest.label}.zip";
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                return latest.zip?.url ?? "";
+
+            return $"{InstalledBuildBaseUrl}/{fileName}";
         }
 
         public static InstalledBuildMeta? TryLoadLocalMeta(string installRoot)
@@ -97,6 +139,7 @@ namespace BravoGameLauncherGui
         public static async Task DownloadZipAsync(string url, string destZipPath, long expectedSize, Action<string> log, Action<double, long, long> progress)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(destZipPath)!);
+            log($"[INFO] ZIP 다운로드 요청: {url}");
 
             // 이미 파일이 있고 size가 일치하면 재다운로드 생략(원하면 여기서 sha256도 검사 가능)
             if (File.Exists(destZipPath))

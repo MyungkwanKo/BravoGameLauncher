@@ -9,7 +9,7 @@
 
 | 구분 | 베이스 URL | 비고 |
 |------|------------|------|
-| Engine (Installed Build, `latest.json` 등) | `http://bravo-build.omnicraftlabs.co.kr/installed/` | `InstalledBuildServices.cs` |
+| Engine (Installed Build, `latest.json` 등) | `http://bravo-build.omnicraftlabs.co.kr/installed/` | `InstalledBuildServices.cs` — **flat 배치** (아래 v23 Engine 배포 경로 참고) |
 | 게임 빌드 (`builds.json`, ZIP 다운로드) | `http://bravo-build.omnicraftlabs.co.kr/builds/` | `BuildListService.cs`, `GameBuildLauncher.cs` — ZIP 경로: `{버전}/WIN 또는 DS/{zip파일명}` |
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
 
@@ -44,6 +44,12 @@
 
 ### ✅ GWEditor 탭 — v22와의 관계
 - Data Sync·Sync 버튼 3줄 배치·장시간 작업 중 UI 잠금(v21) 등 v22 이하 동작은 **개발 스트림 기준** 그대로 유지됩니다.
+
+### ✅ Engine 탭 — Installed Build 배포 경로 (flat)
+- 서버 루트: **`http://bravo-build.omnicraftlabs.co.kr/installed/`** (엔진 버전 중간 폴더 없음)
+- **latest.json**: `{루트}/latest.json` — JSON `engineVersion` 필드로 런처 선택 버전과 일치 여부 확인
+- **Engine ZIP**: `{루트}/{zip.fileName}` — 예: `/installed/UE5.6_6661_40.zip`
+- `latest.json`의 `zip.url`이 구 경로(`/installed/{버전}/...`)이면 런처가 flat URL로 자동 보정
 
 ---
 ## 🆕 v22 변경 사항 요약 (#PJTGW-1945)
@@ -393,7 +399,8 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 
 ### 🔸 Engine 탭
 - Installed Build(Unreal Engine) 다운로드 및 설치
-- 서버 `latest.json`(엔진 버전별) 기반 최신 빌드 정보 표시
+- 서버 **`/installed/latest.json`** (flat, 엔진 버전 폴더 없음) 기반 최신 빌드 정보 표시 — JSON `engineVersion`과 UI 선택 버전 일치 시 사용
+- Engine ZIP: **`/installed/{fileName}`** (예: `UE5.6_6661_40.zip`)
 - 설치 경로: `{BasePath}\GW_Engine\{엔진버전}` (BasePath 변경 가능)
 - **다운로드**: ZIP만 다운로드 (진행률 + **받은 용량/총 용량** 표시 v17, SHA256 검증)
 - **다운로드 + 설치**: 다운로드 후 압축 해제하여 `Engine` 폴더만 적용
@@ -801,7 +808,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
-| v23 | 2026-05-29 | GWEditor: **스트림별 Sync 정책**(`//GWArt/ArtDev` 아트 스트림 — Sync 항상 가능·Local Rollback 비활성·「아트 스트림 입니다.」), **Client stream**·**Stream Latest CL** 표시, Workspace `{클라이언트} ({clientRoot})` 형식, Project UI 행 제거, CL 조회 공용화 |
+| v23 | 2026-05-29 | GWEditor: **스트림별 Sync 정책**(`//GWArt/ArtDev` 아트 스트림 — Sync 항상 가능·Local Rollback 비활성·「아트 스트림 입니다.」), **Client stream**·**Stream Latest CL** 표시, Workspace `{클라이언트} ({clientRoot})` 형식, Project UI 행 제거, CL 조회 공용화; Engine: **Installed Build flat 배포 경로** (`/installed/latest.json`, `/installed/{zip}`) |
 | v22 | 2026-04-28 | GWEditor: **Data Sync** 분리, `#DataTableGenerate` CL 표시·경로별 파일 sync(`//GW/dev/...`, `//streamDepot/dev/DataTable/...`), **Sync**는 ProjectBuild CL 기준 항상 수행 가능(Local CL과 무관). UI 3줄 버튼·레이아웃 조정 (#PJTGW-1945) |
 | v21 | 2026-04-17 | GameStarter/GWEditor: 장시간 작업 중 **탭 내 버튼·입력 비활성화** 및 **다른 탭 전환 차단**; 캐시 삭제는 UI 한 틱 양보 후 동기 삭제(캐시 사용 중 프로세스 종료 필요 시 안내) |
 | v20 | 2026-04-16 | GameStarter: 빌드 목록 **WIN·DS 합집합**(DS만 있어도 표시); **클라이언트(O/X)** 열 추가; WIN 없는 행에서 클라이언트 실행·다운로드 선택 시 안내 |
