@@ -9,9 +9,27 @@
 
 | 구분 | 베이스 URL | 비고 |
 |------|------------|------|
-| Engine (Installed Build, `latest.json` 등) | `http://bravo-build.omnicraftlabs.co.kr/installed/` | `InstalledBuildServices.cs` — **flat 배치** (아래 v23 Engine 배포 경로 참고) |
-| 게임 빌드 (`builds.json`, ZIP 다운로드) | `http://bravo-build.omnicraftlabs.co.kr/builds/` | `BuildListService.cs`, `GameBuildLauncher.cs` — ZIP 경로: `{버전}/WIN 또는 DS/{zip파일명}` |
-| 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` → `launcher.json`의 `package.downloadUrl` 조합 |
+| Engine (`latest.json`) | `http://bravo-build.omnicraftlabs.co.kr/installed/` | Master 고정 — `InstalledBuildServices.cs` |
+| Engine (Installed Build ZIP) | Master `bravo-build…` / Agent `bravo-agent…` | **v25:** ms 홀/짝 + failover 분산 다운로드 |
+| 게임 빌드 (`builds.json`) | `http://bravo-build.omnicraftlabs.co.kr/builds/` | Master 고정 — `BuildListService.cs` |
+| 게임 빌드 (ZIP) | Master `bravo-build…` / Agent `bravo-agent…` | **v25:** ms 홀/짝 + failover — `GameBuildLauncher.cs` |
+| 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` |
+
+---
+## 🆕 v25 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v25** (`LauncherVersionInfo.Version`)
+
+### ✅ Engine / GameStarter — ZIP 분산 다운로드 (Master + Agent)
+- **대용량 ZIP** 다운로드 시 `bravo-build.omnicraftlabs.co.kr`(Master)와 `bravo-agent.omnicraftlabs.co.kr`(Agent-Win) 중 요청 시점 **ms 홀/짝**(짝수→Master, 홀수→Agent)으로 1차 호스트 선택.
+- 1차 실패(연결 오류, HTTP 404/408/5xx 등) 시 **반대 호스트로 1회 자동 재시도(failover)**. HttpClient 타임아웃도 failover 대상.
+- failover 전·최종 실패 시 **부분 다운로드 ZIP 삭제** (손상 캐시 방지).
+- **`CancellationToken`으로 사용자 취소**(`IsCancellationRequested`) 시 failover 없이 즉시 중단.
+- 다운로드 시 `[HOST] primary=…, failover=…` 로그로 호스트·결과 확인 가능.
+- 공용 클래스: `DownloadHostRouter.cs`, `DownloadWithFailover.cs`.
+- **`builds.json`·`latest.json`은 Master 고정** — 목록/매니페스트만 Master, ZIP만 분산.
+- **Coop 런처:** `GameBuildLauncher.cs` 및 공용 클래스 **링크 컴파일**로 소스는 자동 반영. 사용자 PC 반영은 **Coop 별도 재빌드·배포** 필요.
 
 ---
 ## 🆕 v23 변경 사항 요약
@@ -808,6 +826,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v25 | 2026-07-03 | Engine·GameStarter: **Master/Agent ZIP 분산**(ms 홀/짝 + failover, 부분 ZIP 삭제, 취소 시 failover 제외), `DownloadHostRouter`·`DownloadWithFailover`; JSON Master 고정; Coop 소스 링크(별도 배포) |
 | v23 | 2026-05-29 | GWEditor: **스트림별 Sync 정책**(`//GWArt/ArtDev` 아트 스트림 — Sync 항상 가능·Local Rollback 비활성·「아트 스트림 입니다.」), **Client stream**·**Stream Latest CL** 표시, Workspace `{클라이언트} ({clientRoot})` 형식, Project UI 행 제거, CL 조회 공용화; Engine: **Installed Build flat 배포 경로** (`/installed/latest.json`, `/installed/{zip}`) |
 | v22 | 2026-04-28 | GWEditor: **Data Sync** 분리, `#DataTableGenerate` CL 표시·경로별 파일 sync(`//GW/dev/...`, `//streamDepot/dev/DataTable/...`), **Sync**는 ProjectBuild CL 기준 항상 수행 가능(Local CL과 무관). UI 3줄 버튼·레이아웃 조정 (#PJTGW-1945) |
 | v21 | 2026-04-17 | GameStarter/GWEditor: 장시간 작업 중 **탭 내 버튼·입력 비활성화** 및 **다른 탭 전환 차단**; 캐시 삭제는 UI 한 틱 양보 후 동기 삭제(캐시 사용 중 프로세스 종료 필요 시 안내) |

@@ -15,10 +15,6 @@ namespace BravoGameLauncherGui
         private readonly Action<string> _log;
         private static readonly HttpClient HttpClient = new();
 
-        // 서버 빌드 베이스 URL (버전/플랫폼/파일명 붙여서 사용)
-        private const string BuildServerBaseUrl =
-            "http://bravo-build.omnicraftlabs.co.kr/builds";
-
         /// <summary>GameStarter 클라이언트(GW.exe) 기본 실행 인자.</summary>
         public const string DefaultClientLaunchArgs =
             "-trace=NetChannel,Cpu,Frame,Bookmark -tracefile -statnamedevents";
@@ -65,13 +61,14 @@ namespace BravoGameLauncherGui
 
             string buildName = Path.GetFileNameWithoutExtension(zipFileName);
 
-            string downloadUrl = $"{BuildServerBaseUrl}/{version}/{platform}/{zipFileName}";
+            var (primaryUrl, fallbackUrl) = DownloadHostRouter.BuildZipUrls(
+                "builds", $"{version}/{platform}/{zipFileName}");
 
             _log($"[INFO] 빌드 실행 준비");
             _log($"       Version : {version}");
             _log($"       Platform: {platform}");
             _log($"       File    : {zipFileName}");
-            _log($"       URL     : {downloadUrl}");
+            _log($"       URL     : {primaryUrl}");
 
             // 캐시 구조: {Root}/{version}/{buildName}/build.zip + unpacked/
             string versionDir = Path.Combine(RootDownloadDir, version);
@@ -86,12 +83,12 @@ namespace BravoGameLauncherGui
             {
                 _log("[INFO] ZIP 다운로드 시작...");
 
-                using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-
-                await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                await response.Content.CopyToAsync(fs);
-
+                await DownloadWithFailover.DownloadToFileWithFailoverAsync(
+                    HttpClient,
+                    primaryUrl,
+                    fallbackUrl,
+                    zipPath,
+                    _log);
 
                 _log("[INFO] ZIP 다운로드 완료.");
             }
@@ -453,7 +450,8 @@ namespace BravoGameLauncherGui
                 throw new InvalidOperationException($"파일명에서 버전 정보를 파싱하지 못했습니다: {zipFileName}");
 
             string buildName = Path.GetFileNameWithoutExtension(zipFileName);
-            string downloadUrl = $"{BuildServerBaseUrl}/{version}/{platform}/{zipFileName}";
+            var (primaryUrl, fallbackUrl) = DownloadHostRouter.BuildZipUrls(
+                "builds", $"{version}/{platform}/{zipFileName}");
 
             string versionDir = Path.Combine(RootDownloadDir, version);
             string buildDir   = Path.Combine(versionDir, buildName);
@@ -472,50 +470,46 @@ namespace BravoGameLauncherGui
             if (!File.Exists(zipPath))
             {
                 _log($"[INFO] ({platform}) ZIP 다운로드 시작...");
-                _log($"       URL: {downloadUrl}");
-
-                using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-
-                long? totalNullable = response.Content.Headers.ContentLength;
-                if (totalNullable < 0)
-                    totalNullable = null;
+                _log($"       URL: {primaryUrl}");
 
                 string SizeLabel(long read, long? tot)
                     => DownloadProgressFormatter.FormatCurrentOverTotal(read, tot);
 
                 progress?.Invoke(
                     MapProgress(0),
-                    $"{platform} 다운로드 0% ({SizeLabel(0, totalNullable)})");
+                    $"{platform} 다운로드 0% ({SizeLabel(0, null)})");
 
-                await using var httpStream = await response.Content.ReadAsStreamAsync();
-                await using var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
+                long? totalNullable = null;
 
-                byte[] buffer = new byte[1024 * 1024];
-                long readTotal = 0;
-                int read;
-                while ((read = await httpStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                {
-                    await fs.WriteAsync(buffer, 0, read);
-                    readTotal += read;
-                    if (progress == null)
-                        continue;
-
-                    if (totalNullable is long tot && tot > 0)
+                await DownloadWithFailover.DownloadToFileWithFailoverAsync(
+                    HttpClient,
+                    primaryUrl,
+                    fallbackUrl,
+                    zipPath,
+                    _log,
+                    (pct, readTotal, totalBytes) =>
                     {
-                        double pct = (double)readTotal / tot * 100.0;
-                        progress(
-                            MapProgress(Math.Min(100, pct)),
-                            $"{platform} 다운로드 {pct:0}% ({SizeLabel(readTotal, tot)})");
-                    }
-                    else
-                    {
-                        progress(
-                            -1,
-                            $"{platform} 다운로드 ({SizeLabel(readTotal, null)})");
-                    }
-                }
+                        if (totalBytes > 0)
+                            totalNullable = totalBytes;
 
+                        if (progress == null)
+                            return;
+
+                        if (totalBytes > 0)
+                        {
+                            progress(
+                                MapProgress(Math.Min(100, pct)),
+                                $"{platform} 다운로드 {pct:0}% ({SizeLabel(readTotal, totalBytes)})");
+                        }
+                        else
+                        {
+                            progress(
+                                -1,
+                                $"{platform} 다운로드 ({SizeLabel(readTotal, null)})");
+                        }
+                    });
+
+                long readTotal = new FileInfo(zipPath).Length;
                 long effectiveTotal = (totalNullable is long t && t > 0) ? t : readTotal;
                 progress?.Invoke(
                     MapProgress(100),

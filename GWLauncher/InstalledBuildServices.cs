@@ -43,10 +43,9 @@ namespace BravoGameLauncherGui
     {
         private static readonly HttpClient Http = new HttpClient();
 
-        private const string InstalledBuildBaseUrl = "http://bravo-build.omnicraftlabs.co.kr/installed";
-
-        /// <summary>서버 배포 루트. 하위에 엔진 버전 폴더 없이 flat 배치.</summary>
-        public static string InstalledBuildLatestJsonUrl => $"{InstalledBuildBaseUrl}/latest.json";
+        /// <summary>서버 배포 루트. 하위에 엔진 버전 폴더 없이 flat 배치. JSON은 Master 고정.</summary>
+        public static string InstalledBuildLatestJsonUrl =>
+            $"{DownloadHostRouter.MasterInstalledBaseUrl}/latest.json";
 
         public static async Task<InstalledBuildLatest?> GetLatestAsync(string engineVersion, Action<string> log)
         {
@@ -106,7 +105,7 @@ namespace BravoGameLauncherGui
             if (string.IsNullOrWhiteSpace(fileName))
                 return latest.zip?.url ?? "";
 
-            return $"{InstalledBuildBaseUrl}/{fileName}";
+            return $"{DownloadHostRouter.MasterInstalledBaseUrl}/{fileName}";
         }
 
         public static InstalledBuildMeta? TryLoadLocalMeta(string installRoot)
@@ -139,9 +138,8 @@ namespace BravoGameLauncherGui
         public static async Task DownloadZipAsync(string url, string destZipPath, long expectedSize, Action<string> log, Action<double, long, long> progress)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(destZipPath)!);
-            log($"[INFO] ZIP 다운로드 요청: {url}");
 
-            // 이미 파일이 있고 size가 일치하면 재다운로드 생략(원하면 여기서 sha256도 검사 가능)
+            // 이미 파일이 있고 size가 일치하면 재다운로드 생략
             if (File.Exists(destZipPath))
             {
                 var fi = new FileInfo(destZipPath);
@@ -156,38 +154,28 @@ namespace BravoGameLauncherGui
                 File.Delete(destZipPath);
             }
 
-            using var resp = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-            resp.EnsureSuccessStatusCode();
+            string fileName = ExtractZipFileName(url);
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new ArgumentException($"ZIP 파일명을 URL에서 추출하지 못했습니다: {url}", nameof(url));
 
-            long total = resp.Content.Headers.ContentLength ?? expectedSize;
-            if (total < 0)
-                total = 0;
+            var (primaryUrl, fallbackUrl) = DownloadHostRouter.BuildZipUrls("installed", fileName);
 
-            await using var httpStream = await resp.Content.ReadAsStreamAsync();
-            await using var fs = new FileStream(destZipPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
+            await DownloadWithFailover.DownloadToFileWithFailoverAsync(
+                Http,
+                primaryUrl,
+                fallbackUrl,
+                destZipPath,
+                log,
+                progress);
 
-            byte[] buffer = new byte[1024 * 1024];
-            long readTotal = 0;
-            int read;
-            while ((read = await httpStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-            {
-                await fs.WriteAsync(buffer, 0, read);
-                readTotal += read;
-
-                if (total > 0)
-                {
-                    double pct = (double)readTotal / total * 100.0;
-                    progress(Math.Min(100, pct), readTotal, total);
-                }
-                else
-                {
-                    progress(0, readTotal, 0);
-                }
-            }
-
-            long doneTotal = total > 0 ? total : readTotal;
-            progress(100, readTotal, doneTotal);
             log($"[SUCCESS] ZIP 다운로드 완료: {destZipPath}");
+        }
+
+        private static string ExtractZipFileName(string url)
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                return Path.GetFileName(uri.LocalPath);
+            return Path.GetFileName(url);
         }
 
         public static async Task<bool> VerifyZipAsync(string zipPath, long expectedSize, string expectedSha256, Action<string> log)
