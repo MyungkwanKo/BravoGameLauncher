@@ -48,9 +48,9 @@
 |--------|------|
 | `AppendToLog(TextBox, string)` | 지정 TextBox에 메시지 추가 후 맨 아래로 스크롤. (공통 헬퍼) |
 | `AppendLog(string)` | 메인 로그(TxtLog)에 출력. |
-| `AppendEngineLog(string)` | Engine 탭 로그(TxtEngineLog)에 출력. |
-| `AppendSetupP4Log(string)` | Setup P4 탭 로그(TxtSetupP4Log)에 출력. |
-| `AppendGWEditorLog(string)` | GWEditor 탭 로그(TxtGWEditorLog)에 출력. |
+| `AppendEngineLog(string)` | GWEditor 탭 통합 로그(TxtSharedLog)에 출력. (v26부터 섹션별 로그 없이 공용) |
+| `AppendSetupP4Log(string)` | GWEditor 탭 통합 로그(TxtSharedLog)에 출력. (v26부터 섹션별 로그 없이 공용) |
+| `AppendGWEditorLog(string)` | GWEditor 탭 통합 로그(TxtSharedLog)에 출력. (v26부터 섹션별 로그 없이 공용) |
 | `AppendP4SyncLog(string)` | p4 sync 탭 로그(TxtP4SyncLog)에 출력. |
 
 ---
@@ -162,7 +162,6 @@
 | `RefreshEngineStatusAsync()` | 서버 latest.json·로컬 meta 조회 후 서버/로컬 정보·업데이트 필요 여부·다운로드/설치 버튼 상태 갱신. |
 | `DownloadInstalledBuildAsync(bool installAfterDownload)` | 엔진 zip 다운로드 → 무결성 검증 → (옵션) 압축 해제·적용·meta 저장 후 상태 갱신. |
 | `BtnEngineChangePath_Click` | 폴더 선택으로 Installed Build BasePath 변경 후 설정 저장·UI 반영·상태 갱신. |
-| `CbEngineVersion_SelectionChanged` | 엔진 버전 콤보 변경 시 선택 버전 저장, InstallRoot 갱신, Engine 상태 갱신. |
 
 ---
 

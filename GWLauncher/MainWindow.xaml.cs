@@ -42,21 +42,14 @@ namespace BravoGameLauncherGui
         {
             InitializeComponent();
 
+            // GW Sync 탭: 세션 영역 높이를 로그창 최소 높이(80)를 침범하지 않는 선에서
+            // 세션 내용/창 크기에 맞춰 코드로 재계산한다(자세한 이유는 XAML 주석 참고).
+            GWSyncSectionsPanel.SizeChanged += (_, __) => UpdateGWSyncSectionsRowHeight();
+            GWSyncOuterGrid.SizeChanged += (_, __) => UpdateGWSyncSectionsRowHeight();
+
             _settings = AppSettings.Load();
             _launcher = new GameBuildLauncher(AppendLog, _settings.RootDownloadDir);
 
-            // Engine 버전 드롭다운 초기화
-            CbEngineVersion.ItemsSource = SupportedEngineVersions;
-
-            // 저장된 선택 버전 반영
-            if (!string.IsNullOrWhiteSpace(_settings.SelectedEngineVersion))
-                _engineVersion = _settings.SelectedEngineVersion;
-
-            if (!SupportedEngineVersions.Contains(_engineVersion))
-                _engineVersion = SupportedEngineVersions.First(); // 안전
-
-            CbEngineVersion.SelectedItem = _engineVersion;
-            
             // Engine BasePath 기본값 보정
             if (string.IsNullOrWhiteSpace(_settings.InstalledBuildBasePath))
                 _settings.InstalledBuildBasePath = AppSettings.DefaultInstalledBuildBasePath;
@@ -69,7 +62,8 @@ namespace BravoGameLauncherGui
             CbP4UserEngine.IsChecked = false;
             CbP4UserGuest.IsChecked = false;
 
-            TbP4Workspace.Text = new DirectoryInfo(Environment.CurrentDirectory).Name;
+            // Workspace 입력란은 비워두고, 창 로드 후 현재 설정된 P4CLIENT로 자동 채움(RefreshP4SectionStatusAsync)
+            TbP4Workspace.Text = "";
 
             TxtCachePath.Text = _launcher.RootDownloadDir;
             TbGameStarterArgs.Text = GameBuildLauncher.DefaultClientLaunchArgs;
@@ -148,8 +142,10 @@ namespace BravoGameLauncherGui
         }
 
         private void AppendLog(string message) => AppendToLog(TxtLog, message);
-        private void AppendEngineLog(string message) => AppendToLog(TxtEngineLog, message);
-        private void AppendSetupP4Log(string message) => AppendToLog(TxtSetupP4Log, message);
+        // GWEditor 탭(Perforce 설정 / Engine / GWEditor 3개 섹션)은 섹션별 로그를 두지 않고
+        // 탭 하단의 통합 로그창(TxtSharedLog) 하나만 사용한다.
+        private void AppendEngineLog(string message) => AppendToLog(TxtSharedLog, message);
+        private void AppendSetupP4Log(string message) => AppendToLog(TxtSharedLog, message);
 
         /// <summary>GameStarter 장시간 작업 중: 탭 내 조작·다른 탭 이동을 막습니다.</summary>
         private void SetGameStarterInteractionLocked(bool locked)
@@ -171,8 +167,6 @@ namespace BravoGameLauncherGui
             if (TbGameStarterDsArgs != null) TbGameStarterDsArgs.IsEnabled = en;
             if (LvBuilds != null) LvBuilds.IsEnabled = en;
 
-            if (TabItemEngine != null) TabItemEngine.IsEnabled = en;
-            if (TabItemSetupP4 != null) TabItemSetupP4.IsEnabled = en;
             if (TabItemGWEditor != null) TabItemGWEditor.IsEnabled = en;
             if (TabItemGameStarter != null) TabItemGameStarter.IsEnabled = true;
         }
@@ -189,8 +183,6 @@ namespace BravoGameLauncherGui
             if (BtnGWEditorArgsReset != null) BtnGWEditorArgsReset.IsEnabled = en;
             if (TbGWEditorArgs != null) TbGWEditorArgs.IsEnabled = en;
 
-            if (TabItemEngine != null) TabItemEngine.IsEnabled = en;
-            if (TabItemSetupP4 != null) TabItemSetupP4.IsEnabled = en;
             if (TabItemGameStarter != null) TabItemGameStarter.IsEnabled = en;
             if (TabItemGWEditor != null) TabItemGWEditor.IsEnabled = true;
         }
@@ -582,8 +574,6 @@ namespace BravoGameLauncherGui
 
             try
             {
-                TxtSetupP4Log.Clear();
-
                 string ws = (TbP4Workspace.Text ?? "").Trim();
                 if (string.IsNullOrWhiteSpace(ws))
                 {
@@ -636,11 +626,106 @@ namespace BravoGameLauncherGui
 
                 AppendSetupP4Log("==================================");
                 AppendSetupP4Log("=== setup_p4 완료 ===");
+
+                await RefreshP4SectionStatusAsync();
             }
             finally
             {
                 BtnSetupP4Apply.IsEnabled = true;
             }
+        }
+
+        /// <summary>Perforce 설정 섹션 - "조회" 버튼: 선택된 P4User + 로컬 host 기준으로 워크스페이스를 조회해 팝업으로 보여준다.</summary>
+        private async void BtnP4Lookup_Click(object sender, RoutedEventArgs e)
+        {
+            BtnP4Lookup.IsEnabled = false;
+            try
+            {
+                string p4user = GetSelectedP4User();
+                string host = Environment.MachineName;
+
+                AppendSetupP4Log($"[INFO] 워크스페이스 조회 중... (P4USER={p4user}, Host={host})");
+
+                var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", $"-ztag clients -u {p4user}");
+                if (exit != 0)
+                {
+                    AppendSetupP4Log($"[ERROR] 워크스페이스 조회 실패 (ExitCode={exit})");
+                    if (!string.IsNullOrWhiteSpace(stderr)) AppendSetupP4Log(stderr.Trim());
+                    MessageBox.Show($"워크스페이스 조회에 실패했습니다.\n\n{stderr}", "조회 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var allClients = ParseP4ClientsZtag(stdout);
+
+                // 로컬 host와 일치하거나, Host 제한이 없는(어느 PC에서나 사용 가능한) 워크스페이스만 표시
+                var matched = allClients
+                    .Where(c => string.IsNullOrWhiteSpace(c.Host) || string.Equals(c.Host, host, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                AppendSetupP4Log($"[INFO] 워크스페이스 {matched.Count}건 조회됨");
+
+                var popup = new P4WorkspaceLookupWindow(matched, p4user, host) { Owner = this };
+                if (popup.ShowDialog() == true && !string.IsNullOrWhiteSpace(popup.SelectedWorkspaceName))
+                {
+                    TbP4Workspace.Text = popup.SelectedWorkspaceName;
+                    AppendSetupP4Log($"[INFO] 워크스페이스 선택됨: {popup.SelectedWorkspaceName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendSetupP4Log($"[ERROR] 워크스페이스 조회 중 오류: {ex.Message}");
+                MessageBox.Show($"워크스페이스 조회 중 오류가 발생했습니다.\n\n{ex.Message}", "조회 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnP4Lookup.IsEnabled = true;
+            }
+        }
+
+        /// <summary>`p4 -ztag clients -u {user}` 태그 출력 파싱: 레코드 구분자는 "... client " 라인.</summary>
+        private static List<(string Client, string Root, string Host)> ParseP4ClientsZtag(string stdout)
+        {
+            var result = new List<(string Client, string Root, string Host)>();
+            if (string.IsNullOrWhiteSpace(stdout)) return result;
+
+            string? curClient = null, curRoot = null, curHost = null;
+
+            void Flush()
+            {
+                if (!string.IsNullOrWhiteSpace(curClient))
+                    result.Add((curClient!, curRoot ?? "", curHost ?? ""));
+            }
+
+            foreach (var rawLine in stdout.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+            {
+                var line = rawLine.TrimEnd();
+                if (!line.StartsWith("... "))
+                    continue;
+
+                var rest = line.Substring(4);
+                int sp = rest.IndexOf(' ');
+                string key = sp >= 0 ? rest.Substring(0, sp) : rest;
+                string value = sp >= 0 ? rest.Substring(sp + 1).Trim() : "";
+
+                if (key.Equals("client", StringComparison.OrdinalIgnoreCase))
+                {
+                    Flush();
+                    curClient = value;
+                    curRoot = null;
+                    curHost = null;
+                }
+                else if (key.Equals("Root", StringComparison.OrdinalIgnoreCase))
+                {
+                    curRoot = value;
+                }
+                else if (key.Equals("Host", StringComparison.OrdinalIgnoreCase))
+                {
+                    curHost = value;
+                }
+            }
+            Flush();
+
+            return result;
         }
 
         /// <summary>P4 사용자 체크박스 단일 선택(라디오처럼 동작) 처리.</summary>
@@ -673,7 +758,7 @@ namespace BravoGameLauncherGui
             return "gw_developer";
         }
 
-        private void AppendGWEditorLog(string message) => AppendToLog(TxtGWEditorLog, message);
+        private void AppendGWEditorLog(string message) => AppendToLog(TxtSharedLog, message);
 
         private static (string clientName, string clientRoot, string clientStream) ParseP4ZtagInfo(string stdout)
         {
@@ -725,7 +810,6 @@ namespace BravoGameLauncherGui
 
         private async Task RefreshGWEditorP4InfoAsync()
         {
-            TxtGWEditorLog.Clear();
             AppendGWEditorLog("=== GWEditor: Workspace / Editor 경로 확인 ===");
 
             var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", "-ztag info", onFatalLog: AppendGWEditorLog);
@@ -735,12 +819,11 @@ namespace BravoGameLauncherGui
                 if (!string.IsNullOrWhiteSpace(stderr))
                     AppendGWEditorLog(stderr.Trim());
 
-                TbGWEditorWorkspace.Text = "";
                 TbGWEditorClientStream.Text = "";
-                TbGWEditorEditorExe.Text = "";
                 _gwEditorWorkspaceName = null;
                 _gwEditorClientRoot = null;
                 _gwEditorClientStream = null;
+                _gwEditorEditorExePath = null;
                 SetGWEditorSyncStatus("", 0);
                 SetGWEditorStreamLatestClText(-1);
                 SetGWEditorDataTableGenerateClText("");
@@ -752,16 +835,16 @@ namespace BravoGameLauncherGui
             _gwEditorWorkspaceName = clientName;
             _gwEditorClientRoot = clientRoot;
             _gwEditorClientStream = clientStream;
-            TbGWEditorWorkspace.Text = FormatGWEditorWorkspaceDisplay(clientName, clientRoot);
             SetGWEditorClientStreamText(clientStream);
 
-            // Editor exe 경로는 Engine 탭 InstallRoot 기준 (Installed Build)
+            // Editor exe 경로는 Engine 탭 InstallRoot 기준 (Installed Build). UI 행은 없지만(Workspace와 함께 중복 정보라 제거)
+            // Editor 실행 시 사용하기 위해 내부 필드에 보관.
             string engineInstallRoot = TbEngineInstallRoot.Text?.Trim() ?? "";
             string editorExe = Path.Combine(engineInstallRoot, "Engine", "Binaries", "Win64", "UnrealEditor.exe");
-            TbGWEditorEditorExe.Text = editorExe;
+            _gwEditorEditorExePath = editorExe;
             if (BtnGWEditorDataSync != null) BtnGWEditorDataSync.IsEnabled = true;
 
-            AppendGWEditorLog($"Workspace: {TbGWEditorWorkspace.Text}");
+            AppendGWEditorLog($"Workspace: {FormatGWEditorWorkspaceDisplay(clientName, clientRoot)}");
             string streamDisplay = FormatP4ClientStreamDisplay(clientStream);
             AppendGWEditorLog(string.IsNullOrWhiteSpace(clientStream)
                 ? "Client stream: -"
@@ -801,23 +884,46 @@ namespace BravoGameLauncherGui
                 SetGWEditorDataTableGenerateClText(targetCLs.Count > 0 ? string.Join(", ", targetCLs) : "-");
         }
 
+        /// <summary>
+        /// 섹션 헤더 상태 점 색상. statusKind: 0=없음(회색), 1=경고/조치 필요(빨강), 2=정상(초록), 3=주의(주황).
+        /// Perforce 설정 / Engine / GWEditor 3개 섹션 헤더가 공통으로 사용.
+        /// </summary>
+        private static System.Windows.Media.Brush GetSectionStatusDotBrush(int statusKind) => statusKind switch
+        {
+            1 => System.Windows.Media.Brushes.Crimson,
+            2 => System.Windows.Media.Brushes.MediumSeaGreen,
+            3 => System.Windows.Media.Brushes.Orange,
+            _ => System.Windows.Media.Brushes.Gray
+        };
+
+        /// <summary>
+        /// 녹색(정상)이 아닌 경고성 상태(statusKind 1=빨강, 3=주황)일 때 섹션 헤더 바 배경에도 옅은 색을 입혀
+        /// 접힌 상태에서도 눈에 잘 띄게 한다. 정상(2)·정보없음(0)은 배경을 강조하지 않는다.
+        /// </summary>
+        private static System.Windows.Media.Brush GetSectionHeaderBackgroundBrush(int statusKind) => statusKind switch
+        {
+            1 => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFD, 0xEC, 0xEA)),
+            3 => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xF4, 0xE1)),
+            _ => System.Windows.Media.Brushes.Transparent
+        };
+
+        /// <summary>
+        /// Sync 필요여부는 GWEditor 섹션 본문에 별도 행을 두지 않고, 섹션 헤더의 상태 점·요약·배경색으로만 표시한다(중복 제거).
+        /// </summary>
         /// <param name="statusKind">0=없음(회색), 1=동기화필요(빨강), 2=동일(초록), 3=주의(주황)</param>
         private void SetGWEditorSyncStatus(string statusText, int statusKind)
         {
             Dispatcher.Invoke(() =>
             {
-                if (TbGWEditorSyncStatus != null)
-                    TbGWEditorSyncStatus.Text = statusText ?? "";
-                if (GWEditorSyncStatusIndicator != null)
-                {
-                    GWEditorSyncStatusIndicator.Fill = statusKind switch
-                    {
-                        1 => System.Windows.Media.Brushes.Crimson,
-                        2 => System.Windows.Media.Brushes.MediumSeaGreen,
-                        3 => System.Windows.Media.Brushes.Orange,
-                        _ => System.Windows.Media.Brushes.Gray
-                    };
-                }
+                var brush = GetSectionStatusDotBrush(statusKind);
+
+                // 섹션 헤더(접었을 때도 보이는 상태 점·요약·배경색)에 반영
+                if (GWEditorSectionStatusDot != null)
+                    GWEditorSectionStatusDot.Fill = brush;
+                if (TxtGWEditorSectionSummary != null)
+                    TxtGWEditorSectionSummary.Text = statusText ?? "";
+                if (GWEditorSectionHeaderBorder != null)
+                    GWEditorSectionHeaderBorder.Background = GetSectionHeaderBackgroundBrush(statusKind);
             });
         }
 
@@ -867,6 +973,8 @@ namespace BravoGameLauncherGui
         private string? _gwEditorWorkspaceName;
         private string? _gwEditorClientRoot;
         private string? _gwEditorClientStream;
+        // Editor(UnrealEditor.exe) 경로 - UI 행은 제거되었지만(중복 정보) 내부적으로는 계속 계산·보관해 Editor 실행에 사용
+        private string? _gwEditorEditorExePath;
 
         private static string FormatGWEditorWorkspaceDisplay(string? clientName, string? clientRoot)
         {
@@ -899,6 +1007,17 @@ namespace BravoGameLauncherGui
        
         private void BtnRunGWEditor_Click(object sender, RoutedEventArgs e)
         {
+            if (_engineLocalMeta == null)
+            {
+                AppendGWEditorLog("[WARN] 설치된 Engine이 없어 UnrealEditor를 실행할 수 없습니다.");
+                MessageBox.Show(
+                    "설치된 Engine이 없습니다.\n\nEngine 세션에서 먼저 엔진을 다운로드 + 설치해주세요.",
+                    "실행 불가",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             string? uproject = GetGWEditorUprojectPath();
             if (string.IsNullOrWhiteSpace(uproject) || !File.Exists(uproject))
             {
@@ -912,8 +1031,8 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            // UI에 표시된 "에디터 실행 파일 경로"를 기준으로 실행
-            string editorExe = TbGWEditorEditorExe.Text?.Trim() ?? "";
+            // 내부에 보관된 "에디터 실행 파일 경로"(Engine InstallRoot 기준)를 사용해 실행
+            string editorExe = _gwEditorEditorExePath?.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(editorExe) || !File.Exists(editorExe))
             {
                 AppendGWEditorLog("[WARN] UnrealEditor.exe 경로가 유효하지 않습니다: " + editorExe);
@@ -983,6 +1102,37 @@ namespace BravoGameLauncherGui
             TbGameStarterDsArgs.Text = GameBuildLauncher.DefaultDedicatedServerArgs;
         }
 
+        /// <summary>
+        /// GW Sync 탭의 세션(Expander) 영역 행 높이를 재계산한다.
+        /// 세션 내용이 필요로 하는 실제 높이(GWSyncSectionsPanel.ActualHeight)만큼 주되,
+        /// 로그창이 최소 80px는 항상 보이도록 (전체 탭 높이 - 80)을 넘지 않게 제한한다.
+        /// 그 이상 넘치는 내용은 세션 영역의 ScrollViewer가 스크롤바로 보여준다.
+        /// GWSyncSectionsPanel/GWSyncOuterGrid의 SizeChanged 이벤트(세션 펼침/접힘, 창 크기 변경)에서 호출된다.
+        /// </summary>
+        private void UpdateGWSyncSectionsRowHeight()
+        {
+            if (GWSyncOuterGrid == null || GWSyncOuterGrid.RowDefinitions.Count < 2)
+                return;
+
+            double totalHeight = GWSyncOuterGrid.ActualHeight;
+            if (totalHeight <= 0)
+                return; // 아직 레이아웃이 이루어지기 전
+
+            const double logMinHeight = 80;
+            const double sectionsMinHeight = 40;
+
+            double available = totalHeight - logMinHeight;
+            if (available < sectionsMinHeight) available = sectionsMinHeight;
+
+            double desired = GWSyncSectionsPanel?.ActualHeight ?? available;
+            if (desired <= 0) desired = available;
+
+            double newHeight = Math.Min(desired, available);
+            if (newHeight < sectionsMinHeight) newHeight = sectionsMinHeight;
+
+            GWSyncOuterGrid.RowDefinitions[0].Height = new GridLength(newHeight);
+        }
+
         private bool _gwEditorRefreshing = false;
 
         private async void MainTab_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -999,18 +1149,88 @@ namespace BravoGameLauncherGui
 
             string header = tab.Header?.ToString() ?? "";
 
-            if (header == "GWEditor")
+            // GW Sync 탭 = Perforce 설정 + Engine + GWEditor 3개 섹션 통합 탭.
+            // 탭이 선택될 때(최초 진입 포함) 세 섹션 상태를 모두 갱신한다.
+            if (header == "GW Sync")
             {
+                await AutoRefreshP4SetupAsync();
+                await AutoRefreshEngineAsync();
                 await AutoRefreshGWEditorAsync();
                 return;
             }
+        }
 
-            if (header == "Engine")
+        private bool _p4SectionRefreshing = false;
+
+        /// <summary>Perforce 설정 섹션: GW Sync 탭에 들어올 때마다 현재 P4CLIENT 상태를 다시 조회해 표시.</summary>
+        private async Task AutoRefreshP4SetupAsync()
+        {
+            if (_p4SectionRefreshing) return;
+            _p4SectionRefreshing = true;
+            try
             {
-                await AutoRefreshEngineAsync();
-                return;
+                await RefreshP4SectionStatusAsync();
             }
+            finally
+            {
+                _p4SectionRefreshing = false;
+            }
+        }
 
+        private bool _p4SectionAutoStateApplied = false;
+
+        /// <summary>Perforce 설정 섹션 헤더의 상태 점·요약, Workspace 입력란을 실제 설정된 P4CLIENT로 갱신한다(미적용 상태의 입력값은 덮어씀).</summary>
+        private async Task RefreshP4SectionStatusAsync()
+        {
+            try
+            {
+                var (exit, stdout, _) = await RunProcessCaptureAsync("p4", "-ztag info");
+                string clientName = "";
+                if (exit == 0)
+                {
+                    var parsed = ParseP4ZtagInfo(stdout);
+                    clientName = parsed.clientName;
+                }
+
+                if (!string.IsNullOrWhiteSpace(clientName))
+                {
+                    // 조회 팝업 등에서 선택만 하고 "적용"하지 않은 값이 남아있어도,
+                    // 새로고침 시점엔 항상 실제 설정된 P4CLIENT로 덮어써서 보여준다.
+                    TbP4Workspace.Text = clientName;
+
+                    if (TxtP4SectionSummary != null)
+                        TxtP4SectionSummary.Text = $"{clientName} 적용됨";
+                    if (P4SectionStatusDot != null)
+                        P4SectionStatusDot.Fill = GetSectionStatusDotBrush(2);
+                    if (P4SectionHeaderBorder != null)
+                        P4SectionHeaderBorder.Background = GetSectionHeaderBackgroundBrush(2);
+
+                    if (!_p4SectionAutoStateApplied)
+                    {
+                        ExpanderP4Setup.IsExpanded = false;
+                        _p4SectionAutoStateApplied = true;
+                    }
+                }
+                else
+                {
+                    if (TxtP4SectionSummary != null)
+                        TxtP4SectionSummary.Text = "워크스페이스 미설정";
+                    if (P4SectionStatusDot != null)
+                        P4SectionStatusDot.Fill = GetSectionStatusDotBrush(1);
+                    if (P4SectionHeaderBorder != null)
+                        P4SectionHeaderBorder.Background = GetSectionHeaderBackgroundBrush(1);
+
+                    if (!_p4SectionAutoStateApplied)
+                    {
+                        ExpanderP4Setup.IsExpanded = true;
+                        _p4SectionAutoStateApplied = true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendSetupP4Log($"[WARN] 워크스페이스 상태 확인 실패: {ex.Message}");
+            }
         }
 
         private async Task AutoRefreshEngineAsync()
@@ -1318,10 +1538,9 @@ namespace BravoGameLauncherGui
             bool gwEditorFullLock = false;
             try
             {
-                TxtGWEditorLog.Clear();
                 string ws = _gwEditorWorkspaceName ?? "";
                 string root = _gwEditorClientRoot ?? "";
-                string workspaceDisplay = TbGWEditorWorkspace.Text?.Trim() ?? "";
+                string workspaceDisplay = FormatGWEditorWorkspaceDisplay(ws, root);
 
                 if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
                 {
@@ -1481,10 +1700,9 @@ namespace BravoGameLauncherGui
             bool gwEditorFullLock = false;
             try
             {
-                TxtGWEditorLog.Clear();
                 string ws = _gwEditorWorkspaceName ?? "";
                 string root = _gwEditorClientRoot ?? "";
-                string workspaceDisplay = TbGWEditorWorkspace.Text?.Trim() ?? "";
+                string workspaceDisplay = FormatGWEditorWorkspaceDisplay(ws, root);
 
                 if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
                 {
@@ -1809,9 +2027,8 @@ namespace BravoGameLauncherGui
             e.Handled = true;
         }
 
-        // Engine(Installed Build) 버전 
-        private string _engineVersion = "UE5.6";
-        private static readonly string[] SupportedEngineVersions = { "UE5.6"/*, "UE5.7" 등 추가 */ };
+        // Engine(Installed Build) 버전 — 변경이 거의 없어 드롭다운 없이 UE5.6 고정 사용
+        private readonly string _engineVersion = "UE5.6";
         private bool _engineUiReady = false;
 
         // Engine 탭 상태
@@ -1846,14 +2063,12 @@ namespace BravoGameLauncherGui
         {
             await RefreshEngineStatusAsync();
         }
-        private async void BtnEngineDownload_Click(object sender, RoutedEventArgs e)
-        {
-            await DownloadInstalledBuildAsync(installAfterDownload: false);
-        }
         private async void BtnEngineDownloadInstall_Click(object sender, RoutedEventArgs e)
         {
             await DownloadInstalledBuildAsync(installAfterDownload: true);
         }
+
+        private bool _engineSectionAutoStateApplied = false;
 
         private async Task RefreshEngineStatusAsync()
         {
@@ -1861,7 +2076,6 @@ namespace BravoGameLauncherGui
             {
                 PbEngine.IsIndeterminate = true;
                 TxtEngineProgress.Text = "상태 확인 중...";
-                BtnEngineDownload.IsEnabled = false;
                 BtnEngineDownloadInstall.IsEnabled = false;
 
                 string basePath = TbEngineBasePath.Text;
@@ -1875,27 +2089,29 @@ namespace BravoGameLauncherGui
                 // 로컬 meta
                 _engineLocalMeta = InstalledBuildServices.TryLoadLocalMeta(installRoot);
 
-                // UI 표시
-                TxtEngineServerInfo.Text = _engineLatest == null
-                    ? "서버 latest.json을 불러오지 못했습니다."
-                    : $"Label: {_engineLatest.label}\nCL: {_engineLatest.cl}\nCreated: {_engineLatest.createdAt}";
-
-                if (_engineLocalMeta == null)
-                {
-                    TxtEngineLocalInfo.Text =
-                        $"InstallRoot: {installRoot}\n로컬 설치: 없음 (meta 없음)";
-                }
-                else
-                {
-                    TxtEngineLocalInfo.Text =
-                        $"InstallRoot: {installRoot}\n로컬 Label: {_engineLocalMeta.label}\n설치일: {_engineLocalMeta.installedAt}";
-                }
-
-
                 bool needUpdate = _engineLatest != null &&
                                 (_engineLocalMeta == null || !string.Equals(_engineLocalMeta.label, _engineLatest.label, StringComparison.OrdinalIgnoreCase));
 
-                BtnEngineDownload.IsEnabled = _engineLatest != null && !_engineWorking;
+                // 섹션 헤더(상태 점 + 요약 + 배경색)에 서버/로컬 상태를 반영 — 본문의 서버최신/로컬상태 박스는 제거됨(v25 개편)
+                int engineStatusKind = _engineLocalMeta == null ? 1 : (needUpdate ? 3 : 2);
+                if (TxtEngineSectionSummary != null)
+                {
+                    TxtEngineSectionSummary.Text = _engineLocalMeta == null
+                        ? "미설치"
+                        : $"{_engineLocalMeta.label} · {(needUpdate ? "업데이트 필요" : "최신")}";
+                }
+                if (EngineSectionStatusDot != null)
+                    EngineSectionStatusDot.Fill = GetSectionStatusDotBrush(engineStatusKind);
+                if (EngineSectionHeaderBorder != null)
+                    EngineSectionHeaderBorder.Background = GetSectionHeaderBackgroundBrush(engineStatusKind);
+
+                // 최초 상태 확인 시에만 자동 펼침/접힘 적용(이후엔 사용자가 직접 펼치고 접은 상태를 존중)
+                if (!_engineSectionAutoStateApplied)
+                {
+                    ExpanderEngine.IsExpanded = needUpdate || _engineLocalMeta == null;
+                    _engineSectionAutoStateApplied = true;
+                }
+
                 BtnEngineDownloadInstall.IsEnabled = _engineLatest != null && needUpdate && !_engineWorking;
 
                 TxtEngineProgress.Text = needUpdate ? "업데이트 필요" : "최신 상태";
@@ -1934,7 +2150,6 @@ namespace BravoGameLauncherGui
                 // zip 저장 위치: InstallRoot\{label}.zip
                 string zipPath = Path.Combine(installRoot, $"{_engineLatest.label}.zip");
 
-                BtnEngineDownload.IsEnabled = false;
                 BtnEngineDownloadInstall.IsEnabled = false;
 
                 // 다운로드 (이미 존재하면 size/sha256로 재사용 가능)
@@ -1999,6 +2214,10 @@ namespace BravoGameLauncherGui
                 });
 
                 AppendEngineLog("[SUCCESS] 설치 완료 및 meta 갱신");
+
+                // 이전 버전 zip 정리: 방금 설치에 사용한 zip만 남기고 InstallRoot에 쌓인 나머지 zip은 삭제(용량 누적 방지)
+                CleanupOldEngineZips(installRoot, zipPath);
+
                 TxtEngineProgress.Text = "설치 완료";
 
                 await RefreshEngineStatusAsync();
@@ -2013,8 +2232,41 @@ namespace BravoGameLauncherGui
                 PbEngine.IsIndeterminate = false;
                 PbEngine.Value = 0;
                 _engineWorking = false;
-                BtnEngineDownload.IsEnabled = true;
                 BtnEngineDownloadInstall.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// InstallRoot에 남아있는 이전 버전 엔진 zip 파일들을 정리한다.
+        /// 버전업이 반복되면 zip이 계속 쌓이는 것을 막기 위해, 방금 설치에 사용한 zip(keepZipPath) 하나만 남기고 나머지 *.zip은 삭제한다.
+        /// </summary>
+        private void CleanupOldEngineZips(string installRoot, string keepZipPath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(installRoot) || !Directory.Exists(installRoot))
+                    return;
+
+                string keepFileName = Path.GetFileName(keepZipPath);
+                foreach (var zip in Directory.EnumerateFiles(installRoot, "*.zip"))
+                {
+                    if (string.Equals(Path.GetFileName(zip), keepFileName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    try
+                    {
+                        File.Delete(zip);
+                        AppendEngineLog($"[INFO] 이전 버전 zip 삭제: {Path.GetFileName(zip)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendEngineLog($"[WARN] 이전 zip 삭제 실패({Path.GetFileName(zip)}): {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendEngineLog($"[WARN] 이전 zip 정리 중 오류: {ex.Message}");
             }
         }
 
@@ -2038,26 +2290,6 @@ namespace BravoGameLauncherGui
 
             ApplyEngineBasePathToUi(newBase);
 
-            await RefreshEngineStatusAsync();
-        }
-
-        private async void CbEngineVersion_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_engineUiReady) return;
-
-            if (CbEngineVersion.SelectedItem is not string v || string.IsNullOrWhiteSpace(v))
-                return;
-
-            _engineVersion = v.Trim();
-
-            // 선택값 저장(옵션)
-            _settings.SelectedEngineVersion = _engineVersion;
-            _settings.Save();
-
-            // InstallRoot 갱신
-            ApplyEngineBasePathToUi(TbEngineBasePath.Text);
-
-            // 서버 최신/로컬상태 갱신
             await RefreshEngineStatusAsync();
         }
 

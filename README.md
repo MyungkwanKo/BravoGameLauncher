@@ -16,6 +16,37 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` |
 
 ---
+## 🆕 v26 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v26** (`LauncherVersionInfo.Version`)
+
+### ✅ 탭 통합: Engine · Setup p4 · GWEditor → 하나의 "GW Sync" 탭 (접이식 섹션)
+- **Engine / Setup p4 / GWEditor** 탭 3개를 **GW Sync 탭 하나**로 통합. 좌측 탭 메뉴는 **GW Sync / GameStarter** 2개로 축소(`TabItemEngine`, `TabItemSetupP4` 제거, `TabItemGWEditor`의 `Header`만 "GW Sync"로 변경).
+- GW Sync 탭 안에 **`Perforce 설정` → `Engine` → `GWEditor`** 순서로 3개의 접이식 섹션(`Expander`)을 세로로 배치.
+  - 각 섹션 헤더에 **상태 점(초록=정상/주황=주의/빨강=조치 필요)** 과 **제목 옆(24px 간격) 좌측 정렬 한 줄 요약**을 표시해, 접힌 상태에서도 조치 필요 여부를 바로 확인 가능(요약을 우측 정렬로 창 끝까지 늘이지 않아 창 크기와 무관하게 텍스트 잘림 없음). 요약 텍스트는 `Foreground` `#333333`, `FontSize` 13, `FontWeight` Medium으로 가독성 확보.
+  - **Perforce 설정**: 워크스페이스 미설정 시에만 자동 펼침, 설정 후엔 접힘(요약: `{workspace} 적용됨`).
+  - **Engine**: 업데이트가 필요하거나 미설치일 때만 자동 펼침(요약: `{label} · 최신/업데이트 필요/미설치`). 섹션 제목은 "Engine (Installed build)"에서 **"Engine"** 으로 단순화. 자동 펼침/접힘 판정은 **최초 상태 확인 시 1회만** 적용되며, 이후 사용자가 직접 펼치거나 접은 상태는 유지됨.
+  - **GWEditor**: 항상 기본 펼침(가장 자주 쓰는 기능). 정보 표시는 라벨:값 세로 목록으로, 실행 버튼(새로고침·Editor실행·Sync·Data Sync·Local Rollback)은 우측 구분선 패널 없이 **한 줄**로 배치(시안 레이아웃).
+  - **섹션 헤더 경고 색상 강조**: 정상(초록)이 아닌 상태(빨강=조치 필요, 주황=주의)일 때 작은 상태 점뿐 아니라 **섹션 헤더 바 배경 전체**에도 옅은 색(빨강 `#FDECEA`, 주황 `#FFF4E1`)을 입혀 접힌 상태에서도 눈에 잘 띄도록 함(`GetSectionStatusDotBrush`/`GetSectionHeaderBackgroundBrush` 공용 헬퍼, 3개 섹션 공통 적용).
+- **로그창 통합 + 가변 크기**: 섹션별 로그(`TxtSetupP4Log`/`TxtEngineLog`/`TxtGWEditorLog`)를 없애고, GW Sync 탭 **하단의 통합 로그창(`TxtSharedLog`)** 하나만 사용. 각 섹션의 동작(P4 적용, Engine 상태 확인/다운로드, GWEditor 새로고침/Sync/Data Sync)은 모두 이 로그에 함께 쌓이며, 다른 섹션 동작 시 로그를 지우지 않음(각 동작이 자체 `=== ... ===` 헤더로 구간을 구분). 로그창 높이는 **고정이 아닌 가변**: 세션(Expander)을 접으면 로그창이 자동으로 커지고 펼치면 자동으로 작아지며(로그창 최소 높이 80px 항상 보장), 세션을 모두 펼쳐 내용이 창보다 커지면 로그창을 가리는 대신 **세션 영역 자체에 스크롤바**가 생김.
+- **GWEditor 섹션 중복 정보 제거**: Workspace(P4CLIENT) 행(Perforce 설정 섹션과 중복), Editor(UnrealEditor.exe) 경로 행(내부적으로만 계산해 Editor 실행에 사용, UI 비노출), Sync 필요여부 행(섹션 헤더 상태 점·요약과 중복)을 본문에서 제거.
+- **GWEditor 실행 가드**: 설치된 Engine이 없는 상태(미설치)에서 **Editor실행** 버튼을 누르면 UnrealEditor 실행을 시도하지 않고 "설치된 Engine이 없습니다. Engine 세션에서 먼저 엔진을 다운로드 + 설치해주세요." 경고 팝업만 표시.
+
+### ✅ Perforce 설정 섹션 — 워크스페이스 조회 팝업 + 자동 갱신
+- Workspace(P4CLIENT) 입력란 옆에 **조회** 버튼 추가. 클릭 시 현재 체크된 **P4USER**와 **로컬 PC의 host명**을 기준으로 `p4 -ztag clients -u {p4user}`를 조회해, **Host가 비어있거나(제한 없음) 로컬 host와 일치하는** 워크스페이스만 팝업 목록으로 표시.
+- 팝업에서 워크스페이스를 선택하고 **확인**을 누르면 입력란에 채워짐. **닫기**를 누르면 아무것도 선택하지 않고 닫힘.
+- 조회 결과가 없으면 팝업에 "조회된 워크스페이스가 없습니다" 안내 표시. 조회 자체가 실패하면 팝업을 띄우지 않고 로그·오류 메시지로 안내.
+- **GW Sync 탭에 들어올 때마다 매번**(최초 1회가 아님) 현재 설정된 P4CLIENT(`p4 -ztag info`의 clientName)를 조회해 입력란에 반영. 조회 팝업에서 워크스페이스를 선택만 하고 **적용을 누르지 않은 채** 탭을 벗어났다가 돌아오면(재조회), 입력란은 그 미적용 값을 유지하지 않고 **실제 설정된 P4CLIENT** 값으로 되돌아감.
+
+### ✅ Engine 섹션 — 버전 고정, 다운로드 정책, 로컬 zip 자동 정리
+- **UE Version 드롭다운 제거**, 엔진 버전은 **UE5.6 고정**(버전 변경이 거의 없어 선택 UI가 실질적 의미가 없어짐).
+- **다운로드**(단독) 버튼 제거. **다운로드 + 설치** 버튼만 유지(단독 다운로드는 실사용 의미가 없어 제거).
+- **설치 경로(BasePath 변경...)** 설정 UI는 필수 기능으로 유지.
+- 섹션 본문의 "서버 최신 Installed Build" / "로컬 Installed Build 상태" 박스는 제거 — 상단 섹션 헤더의 상태 점·요약으로 대체.
+- **이전 버전 zip 자동 정리**: 다운로드 + 설치가 성공하면 `InstallRoot`에 남아있는 이전 버전 zip 파일들을 자동 삭제하고 방금 설치한 zip만 유지(`CleanupOldEngineZips`). 반복적인 버전 업데이트로 로컬에 zip이 계속 쌓이는 문제 방지.
+
+---
 ## 🆕 v25 변경 사항 요약
 
 ### ✅ 버전
@@ -826,6 +857,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v26 | 2026-07-08 | Engine·Setup p4·GWEditor 탭을 **"GW Sync" 탭 하나**로 통합(접이식 섹션, 상태 점·좌측정렬 요약, 경고 시 헤더 배경 강조, 자동 펼침은 최초 1회만); 통합 로그창은 **가변 높이**(세션 접으면 자동 확대, 펼치면 축소, 최소 80px 보장, 넘치면 세션 영역에 스크롤바); Perforce 설정에 **워크스페이스 조회 팝업**(P4User+로컬 host 기준) 추가, **탭 진입마다 매번** 현재 P4CLIENT 재조회(미적용 값은 덮어씀); Engine 섹션 **UE Version 드롭다운 제거**(UE5.6 고정), **다운로드 단독 버튼 제거**(다운로드+설치만 유지), 설치 성공 시 **이전 버전 zip 자동 삭제**; GWEditor는 **Engine 미설치 시 실행 버튼에 경고**만 표시하고 실행 시도 안 함 |
 | v25 | 2026-07-03 | Engine·GameStarter: **Master/Agent ZIP 분산**(ms 홀/짝 + failover, 부분 ZIP 삭제, 취소 시 failover 제외), `DownloadHostRouter`·`DownloadWithFailover`; JSON Master 고정; Coop 소스 링크(별도 배포) |
 | v23 | 2026-05-29 | GWEditor: **스트림별 Sync 정책**(`//GWArt/ArtDev` 아트 스트림 — Sync 항상 가능·Local Rollback 비활성·「아트 스트림 입니다.」), **Client stream**·**Stream Latest CL** 표시, Workspace `{클라이언트} ({clientRoot})` 형식, Project UI 행 제거, CL 조회 공용화; Engine: **Installed Build flat 배포 경로** (`/installed/latest.json`, `/installed/{zip}`) |
 | v22 | 2026-04-28 | GWEditor: **Data Sync** 분리, `#DataTableGenerate` CL 표시·경로별 파일 sync(`//GW/dev/...`, `//streamDepot/dev/DataTable/...`), **Sync**는 ProjectBuild CL 기준 항상 수행 가능(Local CL과 무관). UI 3줄 버튼·레이아웃 조정 (#PJTGW-1945) |

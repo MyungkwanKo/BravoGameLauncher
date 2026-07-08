@@ -7,6 +7,10 @@
         Width="900"
         WindowStartupLocation="CenterScreen">
 
+    <Window.Resources>
+        <local:WidthReductionConverter x:Key="WidthReduction"/>
+    </Window.Resources>
+
     <Grid Margin="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -47,257 +51,220 @@
         <TabControl x:Name="MainLauncherTabs"
                     Grid.Row="1"
                     TabStripPlacement="Left"
-                    SelectedIndex="2"
+                    SelectedIndex="0"
                     Margin="0"
                     SelectionChanged="MainTab_SelectionChanged">
 
-            <!-- 0) Engine -->
-            <TabItem x:Name="TabItemEngine" Header="Engine">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="10">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+            <!-- 0) GWEditor (통합: Perforce 설정 + Engine + p4 sync/Editor 실행, 접이식 섹션) -->
+            <TabItem x:Name="TabItemGWEditor" Header="GW Sync">
+                <Grid x:Name="GWSyncOuterGrid" Margin="0">
+                    <Grid.RowDefinitions>
+                        <!-- 이 행의 실제 Height는 코드비하인드(UpdateGWSyncSectionsRowHeight)에서 매번 계산해 픽셀값으로 지정한다.
+                             Grid의 Auto+MaxHeight 조합은 ScrollViewer 자식에게 무한 높이로 측정값을 넘겨버려
+                             내용이 넘쳐도 스크롤바가 뜨지 않는 문제가 있어(WPF 알려진 동작), 반드시 고정 픽셀 값을 써야 한다. -->
+                        <RowDefinition Height="250"/>
+                        <!-- 세션 영역이 줄어들면(접힘) 로그창이 자동으로 커지고, 늘어나면(펼침) 자동으로 작아짐 -->
+                        <RowDefinition Height="*" MinHeight="80"/>
+                    </Grid.RowDefinitions>
 
-                        <!-- UE 버전 선택 -->
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                            <TextBlock Text="UE Version:" Width="90" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="CbEngineVersion"
-                                    Width="160"
-                                    Height="24"
-                                    VerticalContentAlignment="Center"
-                                    SelectionChanged="CbEngineVersion_SelectionChanged"/>
-                        </StackPanel>
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="GWSyncSectionsPanel" Margin="10">
 
-                        <!-- 설치 경로 -->
-                        <GroupBox Header="Installed Build 설치 경로" Grid.Row="1" Margin="0,0,0,8">
-                            <Grid Margin="10">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                    <!-- 섹션: Perforce 설정 -->
+                    <Expander x:Name="ExpanderP4Setup" IsExpanded="False" Margin="0,0,0,8"
+                              BorderBrush="#DDDDDD" BorderThickness="1" HorizontalContentAlignment="Stretch">
+                        <Expander.Header>
+                            <Border x:Name="P4SectionHeaderBorder" Background="Transparent" CornerRadius="2" HorizontalAlignment="Stretch"
+                                    Width="{Binding ActualWidth, ElementName=GWSyncSectionsPanel, Converter={StaticResource WidthReduction}, ConverterParameter=16}">
+                                <Grid Margin="4,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse x:Name="P4SectionStatusDot" Grid.Column="0" Width="10" Height="10" Fill="Gray" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Grid.Column="1" Text="Perforce 설정" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" x:Name="TxtP4SectionSummary" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                               Foreground="#333333" FontSize="13" FontWeight="Medium" Margin="24,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Border>
+                        </Expander.Header>
+                        <Grid Margin="8,10,8,8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
-                                    <TextBlock Text="BasePath:" Width="90" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="TbEngineBasePath" Width="520" Height="24" IsReadOnly="True" VerticalContentAlignment="Center"/>
-                                    <Button x:Name="BtnEngineChangePath" Content="변경..." Width="80" Height="24" Margin="8,0,0,0"
-                                            Click="BtnEngineChangePath_Click"/>
-                                </StackPanel>
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Workspace(P4CLIENT):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox x:Name="TbP4Workspace"
+                                         Width="220"
+                                         Height="24"
+                                         VerticalContentAlignment="Center"
+                                         Margin="0,0,8,0"/>
+                                <Button x:Name="BtnP4Lookup"
+                                        Content="조회"
+                                        Width="70"
+                                        Height="24"
+                                        Margin="0,0,8,0"
+                                        Click="BtnP4Lookup_Click"/>
+                                <Button x:Name="BtnSetupP4Apply"
+                                        Content="적용"
+                                        Width="80"
+                                        Height="24"
+                                        Click="BtnSetupP4Apply_Click"/>
+                            </StackPanel>
 
-                                <StackPanel Grid.Row="1" Orientation="Horizontal">
-                                    <TextBlock Text="InstallRoot:" Width="90" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="TbEngineInstallRoot" Width="610" Height="24" IsReadOnly="True" VerticalContentAlignment="Center"/>
-                                </StackPanel>
-                            </Grid>
-                        </GroupBox>
+                            <!-- P4USER 선택 (단일 선택 체크박스) -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="P4USER:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <CheckBox x:Name="CbP4UserDeveloper"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,10,0"
+                                        Click="CbP4UserDeveloper_Click">
+                                    <TextBlock Text="gw_developer"/>
+                                </CheckBox>
 
-                        <!-- 서버/로컬 상태 -->
-                        <Grid Grid.Row="2" Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="CbP4UserEngine"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,10,0"
+                                        Click="CbP4UserEngine_Click">
+                                    <TextBlock Text="gw_engine"/>
+                                </CheckBox>
 
-                            <GroupBox Header="서버 최신 Installed Build" Grid.Column="0" Margin="0,0,6,0">
+                                <CheckBox x:Name="CbP4UserGuest"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,10,0"
+                                        Click="CbP4UserGuest_Click">
+                                    <TextBlock Text="gw_guest"/>
+                                </CheckBox>
+                            </StackPanel>
+                        </Grid>
+                    </Expander>
+
+                    <!-- 섹션: Engine (Installed Build) -->
+                    <Expander x:Name="ExpanderEngine" IsExpanded="False" Margin="0,0,0,8"
+                              BorderBrush="#DDDDDD" BorderThickness="1" HorizontalContentAlignment="Stretch">
+                        <Expander.Header>
+                            <Border x:Name="EngineSectionHeaderBorder" Background="Transparent" CornerRadius="2" HorizontalAlignment="Stretch"
+                                    Width="{Binding ActualWidth, ElementName=GWSyncSectionsPanel, Converter={StaticResource WidthReduction}, ConverterParameter=16}">
+                                <Grid Margin="4,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse x:Name="EngineSectionStatusDot" Grid.Column="0" Width="10" Height="10" Fill="Gray" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Grid.Column="1" Text="Engine" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" x:Name="TxtEngineSectionSummary" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                               Foreground="#333333" FontSize="13" FontWeight="Medium" Margin="24,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Border>
+                        </Expander.Header>
+                        <Grid Margin="8,10,8,8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- UE 버전은 변경이 거의 없어 드롭다운 없이 UE5.6으로 고정 사용(코드비하인드 _engineVersion 상수값) -->
+
+                            <!-- 설치 경로 (필수: 기본 설치 경로 변경) -->
+                            <GroupBox Header="설치 경로" Grid.Row="0" Margin="0,0,0,8">
                                 <Grid Margin="10">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock x:Name="TxtEngineServerInfo" TextWrapping="Wrap" />
-                                    <Button x:Name="BtnEngineRefresh" Grid.Row="1" Content="새로고침" Width="100" Height="26" Margin="0,8,0,0"
-                                            Click="BtnEngineRefresh_Click"/>
+
+                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="BasePath:" Width="90" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="TbEngineBasePath" Width="420" Height="24" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                                        <Button x:Name="BtnEngineChangePath" Content="변경..." Width="80" Height="24" Margin="8,0,0,0"
+                                                Click="BtnEngineChangePath_Click"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="1" Orientation="Horizontal">
+                                        <TextBlock Text="InstallRoot:" Width="90" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="TbEngineInstallRoot" Width="510" Height="24" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
                                 </Grid>
                             </GroupBox>
 
-                            <GroupBox Header="로컬 Installed Build 상태" Grid.Column="1" Margin="6,0,0,0">
-                                <Grid Margin="10">
-                                    <TextBlock x:Name="TxtEngineLocalInfo" TextWrapping="Wrap"/>
-                                </Grid>
-                            </GroupBox>
+                            <!-- 작업 버튼 + 진행 (다운로드 단독 버튼 제거, 다운로드+설치만 유지) -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button x:Name="BtnEngineRefresh" Content="새로고침" Width="100" Height="28"
+                                        Click="BtnEngineRefresh_Click"/>
+                                <Button x:Name="BtnEngineDownloadInstall" Content="다운로드 + 설치" Width="140" Height="28" Margin="8,0,0,0"
+                                        Click="BtnEngineDownloadInstall_Click"/>
+                                <ProgressBar x:Name="PbEngine" Width="240" Height="18" Margin="16,4,0,0"/>
+                                <TextBlock x:Name="TxtEngineProgress" Margin="8,4,0,0" VerticalAlignment="Center" MinWidth="160" TextWrapping="Wrap"/>
+                            </StackPanel>
                         </Grid>
+                    </Expander>
 
-                        <!-- 작업 버튼 + 진행 -->
-                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
-                            <Button x:Name="BtnEngineDownload" Content="다운로드" Width="110" Height="28"
-                                    Click="BtnEngineDownload_Click"/>
-                            <Button x:Name="BtnEngineDownloadInstall" Content="다운로드 + 설치" Width="140" Height="28" Margin="8,0,0,0"
-                                    Click="BtnEngineDownloadInstall_Click"/>
-                            <ProgressBar x:Name="PbEngine" Width="240" Height="18" Margin="16,4,0,0"/>
-                            <TextBlock x:Name="TxtEngineProgress" Margin="8,4,0,0" VerticalAlignment="Center" MinWidth="220" TextWrapping="Wrap"/>
-                        </StackPanel>
-
-                        <!-- 로그 -->
-                        <TextBox x:Name="TxtEngineLog"
-                                Grid.Row="4"
-                                IsReadOnly="True"
-                                TextWrapping="Wrap"
-                                VerticalScrollBarVisibility="Auto"
-                                HorizontalScrollBarVisibility="Auto"
-                                AcceptsReturn="True"/>
-                    </Grid>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- 1) Setup_p4 -->
-            <TabItem x:Name="TabItemSetupP4" Header="Setup p4">
-                <Grid Margin="10">
+                    <!-- 섹션: GWEditor (기본 펼침) -->
+                    <Expander x:Name="ExpanderGWEditor" IsExpanded="True" Margin="0,0,0,8"
+                              BorderBrush="#DDDDDD" BorderThickness="1" HorizontalContentAlignment="Stretch">
+                        <Expander.Header>
+                            <Border x:Name="GWEditorSectionHeaderBorder" Background="Transparent" CornerRadius="2" HorizontalAlignment="Stretch"
+                                    Width="{Binding ActualWidth, ElementName=GWSyncSectionsPanel, Converter={StaticResource WidthReduction}, ConverterParameter=16}">
+                                <Grid Margin="4,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse x:Name="GWEditorSectionStatusDot" Grid.Column="0" Width="10" Height="10" Fill="Gray" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Grid.Column="1" Text="GWEditor" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" x:Name="TxtGWEditorSectionSummary" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                               Foreground="#333333" FontSize="13" FontWeight="Medium" Margin="24,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Border>
+                        </Expander.Header>
+                <Grid Margin="8,10,8,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Text="Perforce 환경변수 설정 (setup_p4)"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,8"/>
-
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="Workspace(P4CLIENT):" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox x:Name="TbP4Workspace"
-                                 Width="260"
-                                 Height="24"
-                                 VerticalContentAlignment="Center"
-                                 Margin="0,0,8,0"/>
-                        <Button x:Name="BtnSetupP4Apply"
-                                Content="적용"
-                                Width="80"
-                                Height="24"
-                                Click="BtnSetupP4Apply_Click"/>
-                    </StackPanel>
-
-                    <!-- P4USER 선택 (단일 선택 체크박스) -->
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="P4USER:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <CheckBox x:Name="CbP4UserDeveloper"
-                                VerticalAlignment="Center"
-                                Margin="0,0,10,0"
-                                Click="CbP4UserDeveloper_Click">
-                            <TextBlock Text="gw_developer"/>
-                        </CheckBox>
-
-                        <CheckBox x:Name="CbP4UserEngine"
-                                VerticalAlignment="Center"
-                                Margin="0,0,10,0"
-                                Click="CbP4UserEngine_Click">
-                            <TextBlock Text="gw_engine"/>
-                        </CheckBox>
-
-                        <CheckBox x:Name="CbP4UserGuest"
-                                VerticalAlignment="Center"
-                                Margin="0,0,10,0"
-                                Click="CbP4UserGuest_Click">
-                            <TextBlock Text="gw_guest"/>
-                        </CheckBox>
-                        </StackPanel>
-
-                    <!-- 탭별 로그: Setup p4 -->
-                    <TextBox x:Name="TxtSetupP4Log"
-                             Grid.Row="3"
-                             IsReadOnly="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Auto"
-                             AcceptsReturn="True"/>
-                </Grid>
-            </TabItem>
-
-            <!-- 2) GWEditor (통합: p4 sync 포함) -->
-            <TabItem x:Name="TabItemGWEditor" Header="GWEditor">
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- 상단: WS/Project/Editor + Local CL/Build CL + Sync 필요여부 + DataTableGenerate CL | 구분선 | 버튼 -->
+                    <!-- 정보 표시: 라벨(0열) | 값(1열) 세로 목록 (시안 레이아웃: 구분선/우측 버튼 패널 없음) -->
                     <Grid Grid.Row="0" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="170"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- 행 단위 줄맞춤: 라벨(0열) | 내용(1열) -->
                         <Grid.RowDefinitions>
                             <RowDefinition Height="32"/>
                             <RowDefinition Height="32"/>
                             <RowDefinition Height="32"/>
                             <RowDefinition Height="32"/>
                             <RowDefinition Height="32"/>
-                            <RowDefinition Height="32"/>
-                            <RowDefinition Height="56"/>
-                            <RowDefinition Height="32"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Workspace(P4CLIENT)" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TbGWEditorWorkspace" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+                        <!-- Workspace(P4CLIENT)는 Perforce 설정 섹션에 이미 표시되므로 중복 제거 -->
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Client stream" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TbGWEditorClientStream" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Client stream" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TbGWEditorClientStream" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+                        <!-- Editor(UnrealEditor.exe) 경로 행 제거 — 내부적으로만 계산해 실행에 사용(_gwEditorEditorExePath) -->
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Editor (UnrealEditor.exe)" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TbGWEditorEditorExe" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Local CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TbGWEditorLocalCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Local CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TbGWEditorLocalCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Stream Latest CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TbGWEditorStreamLatestCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Stream Latest CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="4" Grid.Column="1" x:Name="TbGWEditorStreamLatestCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="GW_ProjectBuild CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TbGWEditorBuildCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
 
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="GW_ProjectBuild CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox  Grid.Row="5" Grid.Column="1" x:Name="TbGWEditorBuildCL" IsReadOnly="True" Height="26" VerticalAlignment="Center"/>
+                        <!-- Sync 필요여부 행 제거 — 섹션 헤더(GWEditorSectionStatusDot·TxtGWEditorSectionSummary)에 이미 표시되어 중복 -->
 
-                        <!-- Sync 필요여부: 이름칸에 라벨+상태 아이콘, 내용칸은 메시지만(다른 박스와 동일 너비) -->
-                        <StackPanel Grid.Row="6" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Sync 필요여부" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <Ellipse x:Name="GWEditorSyncStatusIndicator" Width="12" Height="12"
-                                     VerticalAlignment="Center" Fill="Gray"/>
-                        </StackPanel>
-                        <TextBox Grid.Row="6" Grid.Column="1" x:Name="TbGWEditorSyncStatus"
-                            IsReadOnly="True" MinHeight="26" Height="52" VerticalAlignment="Center"
-                            TextWrapping="Wrap" VerticalContentAlignment="Top" Margin="0,0,0,0"/>
-
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="DataTableGenerate CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox Grid.Row="7" Grid.Column="1" x:Name="TbGWEditorDataTableGenerateCLs"
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="DataTableGenerate CL" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox Grid.Row="4" Grid.Column="1" x:Name="TbGWEditorDataTableGenerateCLs"
                             IsReadOnly="True" Height="26" VerticalAlignment="Center"
                             TextWrapping="Wrap" VerticalContentAlignment="Top" Margin="0,0,0,0"/>
-
-                        <!-- 구분선 + 실행 버튼 3줄 -->
-                        <Border Grid.Row="0" Grid.RowSpan="8" Grid.Column="2"
-                                BorderBrush="#DDDDDD" BorderThickness="1,0,0,0" Margin="12,0,0,0" Padding="12,0,0,0">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <StackPanel Grid.Row="0" Orientation="Horizontal">
-                                    <Button x:Name="BtnGWEditorRefresh" Content="새로고침" Width="110" Margin="0,0,8,0"
-                                            Click="BtnGWEditorRefresh_Click"/>
-                                    <Button x:Name="BtnRunGWEditor" Content="Editor실행" Width="110"
-                                            Click="BtnRunGWEditor_Click"/>
-                                </StackPanel>
-                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,0">
-                                    <Button x:Name="BtnGWEditorSync" Content="Sync" Width="110" Margin="0,0,8,0"
-                                            Click="BtnGWEditorSync_Click"/>
-                                    <Button x:Name="BtnGWEditorDataSync" Content="Data Sync" Width="110"
-                                            Click="BtnGWEditorDataSync_Click"/>
-                                </StackPanel>
-                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
-                                    <Button x:Name="BtnGWEditorLocalRollback" Content="Local Rollback" Width="110"
-                                            Click="BtnGWEditorLocalRollback_Click"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
                     </Grid>
 
                     <!-- 실행 옵션 (에디터 실행 인자) -->
@@ -309,19 +276,39 @@
                                 Click="BtnGWEditorArgsReset_Click"/>
                     </StackPanel>
 
-                    <!-- 탭별 로그 -->
-                    <TextBox x:Name="TxtGWEditorLog"
-                            Grid.Row="2"
-                            IsReadOnly="True"
-                            TextWrapping="Wrap"
-                            VerticalScrollBarVisibility="Auto"
-                            HorizontalScrollBarVisibility="Auto"
-                            AcceptsReturn="True"/>
+                    <!-- 실행 버튼: 한 줄 (시안 레이아웃) -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal">
+                        <Button x:Name="BtnGWEditorRefresh" Content="새로고침" Width="100" Margin="0,0,8,0"
+                                Click="BtnGWEditorRefresh_Click"/>
+                        <Button x:Name="BtnRunGWEditor" Content="Editor실행" Width="100" Margin="0,0,8,0"
+                                Click="BtnRunGWEditor_Click"/>
+                        <Button x:Name="BtnGWEditorSync" Content="Sync" Width="100" Margin="0,0,8,0"
+                                Click="BtnGWEditorSync_Click"/>
+                        <Button x:Name="BtnGWEditorDataSync" Content="Data Sync" Width="100" Margin="0,0,8,0"
+                                Click="BtnGWEditorDataSync_Click"/>
+                        <Button x:Name="BtnGWEditorLocalRollback" Content="Local Rollback" Width="110"
+                                Click="BtnGWEditorLocalRollback_Click"/>
+                    </StackPanel>
+                </Grid>
+                    </Expander>
+
+                </StackPanel>
+                </ScrollViewer>
+
+                <!-- 통합 로그창: 세션별로 나누지 않고 GWEditor 탭 하단에 공용으로 고정 -->
+                <TextBox x:Name="TxtSharedLog"
+                        Grid.Row="1"
+                        Margin="10,4,10,10"
+                        IsReadOnly="True"
+                        TextWrapping="Wrap"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Auto"
+                        AcceptsReturn="True"/>
                 </Grid>
             </TabItem>
 
 
-            <!-- 3) GameStarter (v2 UI 그대로 유지) -->
+            <!-- 1) GameStarter (v2 UI 그대로 유지) -->
             <TabItem x:Name="TabItemGameStarter" Header="GameStarter">
                 <Grid Margin="0">
                     <Grid.RowDefinitions>
