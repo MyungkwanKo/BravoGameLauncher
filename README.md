@@ -16,6 +16,16 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` |
 
 ---
+## 🆕 v27 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v27** (`LauncherVersionInfo.Version`)
+
+### ✅ GameStarter 탭 — DS 실행 옵션 기본값
+- DS 기본 인자에서 맵 지정 옵션 `/GWBattleRoyale/Maps/L_BR_Proto?port=7778` 제거
+- 변경 후 기본값: `-log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1`
+
+---
 ## 🆕 v26 변경 사항 요약
 
 ### ✅ 버전
@@ -486,7 +496,7 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 - **다운로드** 버튼 (v18): 동일 선택으로 ZIP **다운로드·압축 해제만** (실행 없음). 버튼 순서: 새로고침 → 다운로드 → 게임 실행
 - **게임 실행** 버튼: 선택에 따라 클라이언트만 / DS만 / 둘 다 다운로드·실행 (v11). ZIP 다운로드 중 진행 문구에 **현재/총 용량** 표시 (v17, Engine 탭과 동일 규칙)
 - 둘 다 미체크 시 경고 후 실행·다운로드하지 않음
-- **클라이언트 실행 옵션** (v18): 기본·Reset 시 `-trace=NetChannel,Cpu,Frame,Bookmark -tracefile -statnamedevents`. 내용을 지우면 인자 없음으로 실행. **DS 실행 옵션** (v14): `GWServer.exe` 인자 편집·Reset, 비어 있으면 기본값, 멀티라인은 줄바꿈만 공백으로 합침. 상세는 **v14·v15·v18 변경 사항** 참고.
+- **클라이언트 실행 옵션** (v18): 기본·Reset 시 `-trace=NetChannel,Cpu,Frame,Bookmark -tracefile -statnamedevents`. 내용을 지우면 인자 없음으로 실행. **DS 실행 옵션** (v14, v27): `GWServer.exe` 인자 편집·Reset, 비어 있으면 기본값(`-log -trace=...`, 맵 지정 없음), 멀티라인은 줄바꿈만 공백으로 합침. 상세는 **v14·v15·v18·v27 변경 사항** 참고.
 - **캐시**: 로컬 캐시 경로 표시 + **캐시 경로 변경**, **캐시 삭제**, **바로가기**(탐색기 열기, v12) 버튼 (v11에서 상단 옵션 메뉴에서 이전)
 - **unpacked 재사용**: 이미 압축 해제된 폴더가 있으면 삭제·재압축 해제 없이 바로 실행 (v11, 실행 시간 단축)
 
@@ -569,10 +579,10 @@ GW Launcher v2에서 반영된 핵심 변경 사항입니다.
   - DS가 이미 실행 중이면 **기존 DS 프로세스(GWServer.exe) 종료 후 재실행**
 - **Server 실행**: 클라이언트만 실행하며 DS는 다운로드/실행하지 않습니다.
 
-### DS 실행 커맨드 (고정)
-아래 커맨드로 DS가 실행됩니다. (변경 금지)
+### DS 실행 커맨드 (기본값)
+GameStarter **DS 실행 옵션** 기본값(v27, Reset 시 동일). UI에서 수정 가능.
 ```
-GWServer.exe /GWBattleRoyale/Maps/L_BR_Proto -log -port=7777
+GWServer.exe -log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1
 ```
 
 ## ✅ DS 다운로드 버튼 정책
@@ -857,6 +867,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v27 | 2026-07-24 | GameStarter: DS 실행 옵션 기본값에서 맵 지정(`/GWBattleRoyale/Maps/L_BR_Proto?port=7778`) 제거 |
 | v26 | 2026-07-08 | Engine·Setup p4·GWEditor 탭을 **"GW Sync" 탭 하나**로 통합(접이식 섹션, 상태 점·좌측정렬 요약, 경고 시 헤더 배경 강조, 자동 펼침은 최초 1회만); 통합 로그창은 **가변 높이**(세션 접으면 자동 확대, 펼치면 축소, 최소 80px 보장, 넘치면 세션 영역에 스크롤바); Perforce 설정에 **워크스페이스 조회 팝업**(P4User+로컬 host 기준) 추가, **탭 진입마다 매번** 현재 P4CLIENT 재조회(미적용 값은 덮어씀); Engine 섹션 **UE Version 드롭다운 제거**(UE5.6 고정), **다운로드 단독 버튼 제거**(다운로드+설치만 유지), 설치 성공 시 **이전 버전 zip 자동 삭제**; GWEditor는 **Engine 미설치 시 실행 버튼에 경고**만 표시하고 실행 시도 안 함 |
 | v25 | 2026-07-03 | Engine·GameStarter: **Master/Agent ZIP 분산**(ms 홀/짝 + failover, 부분 ZIP 삭제, 취소 시 failover 제외), `DownloadHostRouter`·`DownloadWithFailover`; JSON Master 고정; Coop 소스 링크(별도 배포) |
 | v23 | 2026-05-29 | GWEditor: **스트림별 Sync 정책**(`//GWArt/ArtDev` 아트 스트림 — Sync 항상 가능·Local Rollback 비활성·「아트 스트림 입니다.」), **Client stream**·**Stream Latest CL** 표시, Workspace `{클라이언트} ({clientRoot})` 형식, Project UI 행 제거, CL 조회 공용화; Engine: **Installed Build flat 배포 경로** (`/installed/latest.json`, `/installed/{zip}`) |

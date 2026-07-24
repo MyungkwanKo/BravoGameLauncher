@@ -21,7 +21,7 @@ namespace BravoGameLauncherGui
 
         /// <summary>GameStarter DS(GWServer.exe) 기본 실행 인자.</summary>
         public const string DefaultDedicatedServerArgs =
-            "/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1";
+            "-log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1";
 
         public string RootDownloadDir { get; private set; }
 

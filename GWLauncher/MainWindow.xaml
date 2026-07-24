@@ -407,7 +407,7 @@
                         <TextBlock Grid.Column="0" Text="DS 실행 옵션:" VerticalAlignment="Top" Margin="0,4,8,0"/>
                         <TextBox Grid.Column="1" x:Name="TbGameStarterDsArgs" MinHeight="48" Height="48" MinWidth="0"
                                  VerticalContentAlignment="Top"
-                                 Text="/GWBattleRoyale/Maps/L_BR_Proto?port=7778 -log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1"
+                                 Text="-log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1"
                                  TextWrapping="Wrap" AcceptsReturn="False"
                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>
                         <Button Grid.Column="2" x:Name="BtnGameStarterDsArgsReset" Content="Reset" Width="60" Height="24" Margin="8,4,0,0"
