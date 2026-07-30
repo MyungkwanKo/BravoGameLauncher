@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -15,12 +14,9 @@ namespace BravoGameLauncherGui
         public static string DefaultInstalledBuildBasePath =>
             Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
 
-
-        public List<string> RecentFileNames { get; set; } = new();
-
         public static string SettingsDir =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                         "BravoGameLauncherGui");  
+                         "BravoGameLauncherGui");
 
         public static string SettingsPath => Path.Combine(SettingsDir, "settings.json");
 
@@ -41,7 +37,7 @@ namespace BravoGameLauncherGui
                 }
             }
             catch { }
-            
+
             return new AppSettings();
         }
 
@@ -55,23 +51,5 @@ namespace BravoGameLauncherGui
             });
             File.WriteAllText(SettingsPath, json);
         }
-
-        public void AddRecentFileName(string fileName)
-        {
-            fileName = fileName.Trim();
-            if (string.IsNullOrWhiteSpace(fileName))
-                return;
-
-            RecentFileNames.RemoveAll(x => 
-                x.Equals(fileName, StringComparison.OrdinalIgnoreCase));
-
-            RecentFileNames.Insert(0, fileName);
-
-            if (RecentFileNames.Count > 10)
-                RecentFileNames.RemoveRange(10, RecentFileNames.Count - 10);
-        }
-
-        public string SelectedEngineVersion { get; set; } = "UE5.6";
-
     }
 }

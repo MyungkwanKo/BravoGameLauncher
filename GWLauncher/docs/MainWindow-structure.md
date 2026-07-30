@@ -48,9 +48,8 @@
 |--------|------|
 | `AppendToLog(TextBox, string)` | 지정 TextBox에 메시지 추가 후 맨 아래로 스크롤. (공통 헬퍼) |
 | `AppendLog(string)` | 메인 로그(TxtLog)에 출력. |
-| `AppendEngineLog(string)` | GWEditor 탭 통합 로그(TxtSharedLog)에 출력. (v26부터 섹션별 로그 없이 공용) |
-| `AppendSetupP4Log(string)` | GWEditor 탭 통합 로그(TxtSharedLog)에 출력. (v26부터 섹션별 로그 없이 공용) |
-| `AppendGWEditorLog(string)` | GWEditor 탭 통합 로그(TxtSharedLog)에 출력. (v26부터 섹션별 로그 없이 공용) |
+| `AppendSharedLog(string)` | GW Sync 탭 통합 로그(`TxtSharedLog`)에 출력. |
+| `AppendLog(string)` | GameStarter 탭 로그(`TxtLog`)에 출력. |
 | `AppendP4SyncLog(string)` | p4 sync 탭 로그(TxtP4SyncLog)에 출력. |
 
 ---

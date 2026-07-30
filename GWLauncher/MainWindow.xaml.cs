@@ -141,10 +141,8 @@ namespace BravoGameLauncherGui
         }
 
         private void AppendLog(string message) => AppendToLog(TxtLog, message);
-        // GWEditor 탭(Perforce 설정 / Engine / GWEditor 3개 섹션)은 섹션별 로그를 두지 않고
-        // 탭 하단의 통합 로그창(TxtSharedLog) 하나만 사용한다.
-        private void AppendEngineLog(string message) => AppendToLog(TxtSharedLog, message);
-        private void AppendSetupP4Log(string message) => AppendToLog(TxtSharedLog, message);
+        // GW Sync 탭(Perforce 설정 / Engine / GWEditor)은 통합 로그창(TxtSharedLog) 하나만 사용한다.
+        private void AppendSharedLog(string message) => AppendToLog(TxtSharedLog, message);
 
         /// <summary>GameStarter 장시간 작업 중: 탭 내 조작·다른 탭 이동을 막습니다.</summary>
         private void SetGameStarterInteractionLocked(bool locked)
@@ -577,14 +575,14 @@ namespace BravoGameLauncherGui
                 if (string.IsNullOrWhiteSpace(ws))
                 {
                     // 입력 누락은 사용자 실수이므로: 로그 + 팝업(친절)
-                    AppendSetupP4Log("[WARN] Workspace 이름을 입력하세요.");
+                    AppendSharedLog("[WARN] Workspace 이름을 입력하세요.");
                     MessageBox.Show("Workspace(P4CLIENT) 이름을 입력하세요.", "입력 필요", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                AppendSetupP4Log("=== setup_p4 시작 ===");
-                AppendSetupP4Log($"Workspace(P4CLIENT): {ws}");
-                AppendSetupP4Log("");
+                AppendSharedLog("=== setup_p4 시작 ===");
+                AppendSharedLog($"Workspace(P4CLIENT): {ws}");
+                AppendSharedLog("");
 
                 // 배치와 동일한 설정(값 그대로)
                 // p4 set P4IGNORE=.p4ignore
@@ -595,36 +593,36 @@ namespace BravoGameLauncherGui
 
                 int code;
 
-                code = await RunProcessAsync("p4", "set P4IGNORE=.p4ignore", AppendSetupP4Log);
-                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+                code = await RunProcessAsync("p4", "set P4IGNORE=.p4ignore", AppendSharedLog);
+                if (code != 0) AppendSharedLog($"[WARN] ExitCode={code}");
 
-                code = await RunProcessAsync("p4", "set P4CHARSET=utf8", AppendSetupP4Log);
-                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+                code = await RunProcessAsync("p4", "set P4CHARSET=utf8", AppendSharedLog);
+                if (code != 0) AppendSharedLog($"[WARN] ExitCode={code}");
 
                 var p4user = GetSelectedP4User();
-                AppendSetupP4Log($"P4USER: {p4user}");
-                code = await RunProcessAsync("p4", $"set P4USER={p4user}", AppendSetupP4Log);
-                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+                AppendSharedLog($"P4USER: {p4user}");
+                code = await RunProcessAsync("p4", $"set P4USER={p4user}", AppendSharedLog);
+                if (code != 0) AppendSharedLog($"[WARN] ExitCode={code}");
 
-                code = await RunProcessAsync("p4", "set P4PORT=bravo-repo.omnicraftlabs.co.kr:1666", AppendSetupP4Log);
-                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+                code = await RunProcessAsync("p4", "set P4PORT=bravo-repo.omnicraftlabs.co.kr:1666", AppendSharedLog);
+                if (code != 0) AppendSharedLog($"[WARN] ExitCode={code}");
 
-                code = await RunProcessAsync("p4", $"set P4CLIENT={ws}", AppendSetupP4Log);
-                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+                code = await RunProcessAsync("p4", $"set P4CLIENT={ws}", AppendSharedLog);
+                if (code != 0) AppendSharedLog($"[WARN] ExitCode={code}");
 
-                AppendSetupP4Log("");
-                AppendSetupP4Log("===== Perforce 환경 변수 확인 =====");
+                AppendSharedLog("");
+                AppendSharedLog("===== Perforce 환경 변수 확인 =====");
 
-                code = await RunProcessAsync("p4", "set", AppendSetupP4Log);
-                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+                code = await RunProcessAsync("p4", "set", AppendSharedLog);
+                if (code != 0) AppendSharedLog($"[WARN] ExitCode={code}");
 
-                AppendSetupP4Log("===== P4 Info 확인 =====");
+                AppendSharedLog("===== P4 Info 확인 =====");
 
-                code = await RunProcessAsync("p4", "info", AppendSetupP4Log);
-                if (code != 0) AppendSetupP4Log($"[WARN] ExitCode={code}");
+                code = await RunProcessAsync("p4", "info", AppendSharedLog);
+                if (code != 0) AppendSharedLog($"[WARN] ExitCode={code}");
 
-                AppendSetupP4Log("==================================");
-                AppendSetupP4Log("=== setup_p4 완료 ===");
+                AppendSharedLog("==================================");
+                AppendSharedLog("=== setup_p4 완료 ===");
 
                 await RefreshP4SectionStatusAsync();
             }
@@ -643,13 +641,13 @@ namespace BravoGameLauncherGui
                 string p4user = GetSelectedP4User();
                 string host = Environment.MachineName;
 
-                AppendSetupP4Log($"[INFO] 워크스페이스 조회 중... (P4USER={p4user}, Host={host})");
+                AppendSharedLog($"[INFO] 워크스페이스 조회 중... (P4USER={p4user}, Host={host})");
 
                 var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", $"-ztag clients -u {p4user}");
                 if (exit != 0)
                 {
-                    AppendSetupP4Log($"[ERROR] 워크스페이스 조회 실패 (ExitCode={exit})");
-                    if (!string.IsNullOrWhiteSpace(stderr)) AppendSetupP4Log(stderr.Trim());
+                    AppendSharedLog($"[ERROR] 워크스페이스 조회 실패 (ExitCode={exit})");
+                    if (!string.IsNullOrWhiteSpace(stderr)) AppendSharedLog(stderr.Trim());
                     MessageBox.Show($"워크스페이스 조회에 실패했습니다.\n\n{stderr}", "조회 오류", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
@@ -661,18 +659,18 @@ namespace BravoGameLauncherGui
                     .Where(c => string.IsNullOrWhiteSpace(c.Host) || string.Equals(c.Host, host, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
-                AppendSetupP4Log($"[INFO] 워크스페이스 {matched.Count}건 조회됨");
+                AppendSharedLog($"[INFO] 워크스페이스 {matched.Count}건 조회됨");
 
                 var popup = new P4WorkspaceLookupWindow(matched, p4user, host) { Owner = this };
                 if (popup.ShowDialog() == true && !string.IsNullOrWhiteSpace(popup.SelectedWorkspaceName))
                 {
                     TbP4Workspace.Text = popup.SelectedWorkspaceName;
-                    AppendSetupP4Log($"[INFO] 워크스페이스 선택됨: {popup.SelectedWorkspaceName}");
+                    AppendSharedLog($"[INFO] 워크스페이스 선택됨: {popup.SelectedWorkspaceName}");
                 }
             }
             catch (Exception ex)
             {
-                AppendSetupP4Log($"[ERROR] 워크스페이스 조회 중 오류: {ex.Message}");
+                AppendSharedLog($"[ERROR] 워크스페이스 조회 중 오류: {ex.Message}");
                 MessageBox.Show($"워크스페이스 조회 중 오류가 발생했습니다.\n\n{ex.Message}", "조회 오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -757,8 +755,6 @@ namespace BravoGameLauncherGui
             return "gw_developer";
         }
 
-        private void AppendGWEditorLog(string message) => AppendToLog(TxtSharedLog, message);
-
         private static (string clientName, string clientRoot, string clientStream) ParseP4ZtagInfo(string stdout)
         {
             string name = "", root = "", stream = "";
@@ -809,14 +805,14 @@ namespace BravoGameLauncherGui
 
         private async Task RefreshGWEditorP4InfoAsync()
         {
-            AppendGWEditorLog("=== GWEditor: Workspace / Editor 경로 확인 ===");
+            AppendSharedLog("=== GWEditor: Workspace / Editor 경로 확인 ===");
 
-            var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", "-ztag info", onFatalLog: AppendGWEditorLog);
+            var (exit, stdout, stderr) = await RunProcessCaptureAsync("p4", "-ztag info", onFatalLog: AppendSharedLog);
             if (exit != 0)
             {
-                AppendGWEditorLog($"[WARN] p4 -ztag info 실패 (ExitCode={exit})");
+                AppendSharedLog($"[WARN] p4 -ztag info 실패 (ExitCode={exit})");
                 if (!string.IsNullOrWhiteSpace(stderr))
-                    AppendGWEditorLog(stderr.Trim());
+                    AppendSharedLog(stderr.Trim());
 
                 TbGWEditorClientStream.Text = "";
                 _gwEditorWorkspaceName = null;
@@ -843,22 +839,22 @@ namespace BravoGameLauncherGui
             _gwEditorEditorExePath = editorExe;
             if (BtnGWEditorDataSync != null) BtnGWEditorDataSync.IsEnabled = true;
 
-            AppendGWEditorLog($"Workspace: {FormatGWEditorWorkspaceDisplay(clientName, clientRoot)}");
+            AppendSharedLog($"Workspace: {FormatGWEditorWorkspaceDisplay(clientName, clientRoot)}");
             string streamDisplay = FormatP4ClientStreamDisplay(clientStream);
-            AppendGWEditorLog(string.IsNullOrWhiteSpace(clientStream)
+            AppendSharedLog(string.IsNullOrWhiteSpace(clientStream)
                 ? "Client stream: -"
                 : $"Client stream: {streamDisplay}");
             string? uproject = GetGWEditorUprojectPath();
             if (!string.IsNullOrWhiteSpace(uproject))
-                AppendGWEditorLog($"Project: {uproject}");
-            AppendGWEditorLog($"Editor : {editorExe}");
+                AppendSharedLog($"Project: {uproject}");
+            AppendSharedLog($"Editor : {editorExe}");
 
             // Local / Stream Latest / Build CL — Local CL은 한 번만 조회해 공유
             int localCL = await QueryLocalChangeAsync(clientName, clientRoot, log: null);
 
             int streamLatestCL = await QueryStreamLatestChangeAsync(clientStream, clientRoot, log: null);
             SetGWEditorStreamLatestClText(streamLatestCL);
-            AppendGWEditorLog(streamLatestCL > 0
+            AppendSharedLog(streamLatestCL > 0
                 ? $"Stream Latest CL: {streamLatestCL}"
                 : "[WARN] Stream Latest CL 조회 실패");
 
@@ -1008,7 +1004,7 @@ namespace BravoGameLauncherGui
         {
             if (_engineLocalMeta == null)
             {
-                AppendGWEditorLog("[WARN] 설치된 Engine이 없어 UnrealEditor를 실행할 수 없습니다.");
+                AppendSharedLog("[WARN] 설치된 Engine이 없어 UnrealEditor를 실행할 수 없습니다.");
                 MessageBox.Show(
                     "설치된 Engine이 없습니다.\n\nEngine 세션에서 먼저 엔진을 다운로드 + 설치해주세요.",
                     "실행 불가",
@@ -1020,7 +1016,7 @@ namespace BravoGameLauncherGui
             string? uproject = GetGWEditorUprojectPath();
             if (string.IsNullOrWhiteSpace(uproject) || !File.Exists(uproject))
             {
-                AppendGWEditorLog("[WARN] 프로젝트 파일(GW.uproject) 경로가 유효하지 않습니다: " + uproject);
+                AppendSharedLog("[WARN] 프로젝트 파일(GW.uproject) 경로가 유효하지 않습니다: " + uproject);
                 MessageBox.Show(
                     "프로젝트 파일(GW.uproject)을 찾을 수 없습니다.\n\n" + uproject +
                     "\n\n[새로고침] 후 다시 시도하세요.",
@@ -1034,7 +1030,7 @@ namespace BravoGameLauncherGui
             string editorExe = _gwEditorEditorExePath?.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(editorExe) || !File.Exists(editorExe))
             {
-                AppendGWEditorLog("[WARN] UnrealEditor.exe 경로가 유효하지 않습니다: " + editorExe);
+                AppendSharedLog("[WARN] UnrealEditor.exe 경로가 유효하지 않습니다: " + editorExe);
                 MessageBox.Show(
                     "UnrealEditor.exe를 찾을 수 없습니다.\n\n" + editorExe +
                     "\n\nEngine 탭에서 Installed Build 설치/경로를 확인하세요.",
@@ -1048,10 +1044,10 @@ namespace BravoGameLauncherGui
             if (string.IsNullOrWhiteSpace(opts)) opts = DefaultGWEditorArgs;
             string args = $"\"{uproject}\" {opts}";
 
-            AppendGWEditorLog("=== UnrealEditor 실행 요청 ===");
-            AppendGWEditorLog("Editor : " + editorExe);
-            AppendGWEditorLog("Project: " + uproject);
-            AppendGWEditorLog("Args   : " + args);
+            AppendSharedLog("=== UnrealEditor 실행 요청 ===");
+            AppendSharedLog("Editor : " + editorExe);
+            AppendSharedLog("Project: " + uproject);
+            AppendSharedLog("Args   : " + args);
 
             try
             {
@@ -1067,11 +1063,11 @@ namespace BravoGameLauncherGui
                     UseShellExecute = true,
                 });
 
-                AppendGWEditorLog("실행 요청 완료.");
+                AppendSharedLog("실행 요청 완료.");
             }
             catch (Exception ex)
             {
-                AppendGWEditorLog("[FATAL] 실행 실패: " + ex.Message);
+                AppendSharedLog("[FATAL] 실행 실패: " + ex.Message);
                 MessageBox.Show($"UnrealEditor 실행 실패\n\n{ex.Message}", "실행 오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -1228,7 +1224,7 @@ namespace BravoGameLauncherGui
             }
             catch (Exception ex)
             {
-                AppendSetupP4Log($"[WARN] 워크스페이스 상태 확인 실패: {ex.Message}");
+                AppendSharedLog($"[WARN] 워크스페이스 상태 확인 실패: {ex.Message}");
             }
         }
 
@@ -1543,7 +1539,7 @@ namespace BravoGameLauncherGui
 
                 if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
                 {
-                    AppendGWEditorLog("[WARN] Workspace/Client Root를 확인할 수 없습니다. [새로고침] 후 다시 시도하세요.");
+                    AppendSharedLog("[WARN] Workspace/Client Root를 확인할 수 없습니다. [새로고침] 후 다시 시도하세요.");
                     MessageBox.Show("Workspace/Client Root를 확인할 수 없습니다.\n\n[새로고침] 후 다시 시도하세요.",
                         "실행 불가", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -1557,51 +1553,51 @@ namespace BravoGameLauncherGui
 
                 if (confirm != MessageBoxResult.Yes)
                 {
-                    AppendGWEditorLog("[INFO] 사용자가 취소했습니다.");
+                    AppendSharedLog("[INFO] 사용자가 취소했습니다.");
                     return;
                 }
 
                 SetGWEditorInteractionLocked(true);
                 gwEditorFullLock = true;
 
-                AppendGWEditorLog("=== p4 sync 시작 ===");
+                AppendSharedLog("=== p4 sync 시작 ===");
                 if (IsArtDevP4Stream(_gwEditorClientStream))
                 {
-                    int localCL = await QueryLocalChangeAsync(ws, root, AppendGWEditorLog);
-                    AppendGWEditorLog("");
-                    AppendGWEditorLog($"[INFO] ArtDev 스트림: p4 sync 실행 (Local CL={localCL})");
-                    int code = await RunProcessAsync("p4", "sync", AppendGWEditorLog, root);
+                    int localCL = await QueryLocalChangeAsync(ws, root, AppendSharedLog);
+                    AppendSharedLog("");
+                    AppendSharedLog($"[INFO] ArtDev 스트림: p4 sync 실행 (Local CL={localCL})");
+                    int code = await RunProcessAsync("p4", "sync", AppendSharedLog, root);
                     if (code != 0)
                     {
-                        AppendGWEditorLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
+                        AppendSharedLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
                         return;
                     }
 
-                    AppendGWEditorLog("");
-                    AppendGWEditorLog("[OK] ArtDev 스트림 워크스페이스 동기화가 완료되었습니다.");
+                    AppendSharedLog("");
+                    AppendSharedLog("[OK] ArtDev 스트림 워크스페이스 동기화가 완료되었습니다.");
                 }
                 else
                 {
-                    var (localCL, buildCL, _, _, _) = await QueryP4SyncClStateAsync(ws, root, AppendGWEditorLog);
+                    var (localCL, buildCL, _, _, _) = await QueryP4SyncClStateAsync(ws, root, AppendSharedLog);
                     if (buildCL <= 0)
                     {
-                        AppendGWEditorLog("[WARN] 유효한 GW_ProjectBuild CL을 찾지 못해 sync를 중단합니다.");
+                        AppendSharedLog("[WARN] 유효한 GW_ProjectBuild CL을 찾지 못해 sync를 중단합니다.");
                         return;
                     }
 
-                    AppendGWEditorLog("");
-                    AppendGWEditorLog($"[4/4] GW_ProjectBuild 기준 p4 sync ...@{buildCL} 실행 (Local CL={localCL})");
-                    int code = await RunProcessAsync("p4", $"sync ...@{buildCL}", AppendGWEditorLog, root);
+                    AppendSharedLog("");
+                    AppendSharedLog($"[4/4] GW_ProjectBuild 기준 p4 sync ...@{buildCL} 실행 (Local CL={localCL})");
+                    int code = await RunProcessAsync("p4", $"sync ...@{buildCL}", AppendSharedLog, root);
                     if (code != 0)
                     {
-                        AppendGWEditorLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
+                        AppendSharedLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
                         return;
                     }
 
-                    AppendGWEditorLog("");
-                    AppendGWEditorLog($"[OK] 로컬 워크스페이스가 최신 GW_ProjectBuild CL {buildCL} 까지 동기화되었습니다.");
+                    AppendSharedLog("");
+                    AppendSharedLog($"[OK] 로컬 워크스페이스가 최신 GW_ProjectBuild CL {buildCL} 까지 동기화되었습니다.");
                 }
-                AppendGWEditorLog("=== p4 sync 완료 ===");
+                AppendSharedLog("=== p4 sync 완료 ===");
             }
             finally
             {
@@ -1705,7 +1701,7 @@ namespace BravoGameLauncherGui
 
                 if (string.IsNullOrWhiteSpace(ws) || string.IsNullOrWhiteSpace(root))
                 {
-                    AppendGWEditorLog("[WARN] Workspace/Client Root를 확인할 수 없습니다. [새로고침] 후 다시 시도하세요.");
+                    AppendSharedLog("[WARN] Workspace/Client Root를 확인할 수 없습니다. [새로고침] 후 다시 시도하세요.");
                     MessageBox.Show("Workspace/Client Root를 확인할 수 없습니다.\n\n[새로고침] 후 다시 시도하세요.",
                         "실행 불가", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -1719,59 +1715,59 @@ namespace BravoGameLauncherGui
 
                 if (confirm != MessageBoxResult.Yes)
                 {
-                    AppendGWEditorLog("[INFO] 사용자가 취소했습니다.");
+                    AppendSharedLog("[INFO] 사용자가 취소했습니다.");
                     return;
                 }
 
                 SetGWEditorInteractionLocked(true);
                 gwEditorFullLock = true;
 
-                AppendGWEditorLog("=== Data Sync 시작 ===");
+                AppendSharedLog("=== Data Sync 시작 ===");
                 var (localCL, latestServerCL, targetCLs) =
-                    await QueryDataTableSyncTargetsAsync(ws, root, log: AppendGWEditorLog);
+                    await QueryDataTableSyncTargetsAsync(ws, root, log: AppendSharedLog);
 
                 if (latestServerCL < 0)
                 {
-                    AppendGWEditorLog("[WARN] 서버 제출 CL 조회에 실패하여 Data Sync를 중단합니다.");
+                    AppendSharedLog("[WARN] 서버 제출 CL 조회에 실패하여 Data Sync를 중단합니다.");
                     return;
                 }
 
                 if (targetCLs.Count == 0)
                 {
-                    AppendGWEditorLog($"[INFO] 검사 구간(Local {localCL} ~ Server {latestServerCL})에서 {P4SYNC_DATATABLE_TAG} 태그 CL이 없어 sync 생략.");
+                    AppendSharedLog($"[INFO] 검사 구간(Local {localCL} ~ Server {latestServerCL})에서 {P4SYNC_DATATABLE_TAG} 태그 CL이 없어 sync 생략.");
                     return;
                 }
 
-                AppendGWEditorLog($"[INFO] Data Sync 대상 CL(#DataTableGenerate): {string.Join(", ", targetCLs)}");
+                AppendSharedLog($"[INFO] Data Sync 대상 CL(#DataTableGenerate): {string.Join(", ", targetCLs)}");
                 foreach (var cl in targetCLs)
                 {
-                    var filesAtChange = await QueryDataTableSyncFileRevisionsByChangeAsync(cl, root, AppendGWEditorLog);
+                    var filesAtChange = await QueryDataTableSyncFileRevisionsByChangeAsync(cl, root, AppendSharedLog);
                     if (filesAtChange.Count == 0)
                     {
-                        AppendGWEditorLog($"[WARN] CL {cl}에서 Data Sync 대상 파일을 찾지 못해 건너뜁니다.");
+                        AppendSharedLog($"[WARN] CL {cl}에서 Data Sync 대상 파일을 찾지 못해 건너뜁니다.");
                         continue;
                     }
 
                     const int syncChunkSize = 50;
-                    AppendGWEditorLog("");
-                    AppendGWEditorLog($"[SYNC] CL {cl}: 대상 파일 {filesAtChange.Count}개");
+                    AppendSharedLog("");
+                    AppendSharedLog($"[SYNC] CL {cl}: 대상 파일 {filesAtChange.Count}개");
 
                     for (int i = 0; i < filesAtChange.Count; i += syncChunkSize)
                     {
                         var chunk = filesAtChange.Skip(i).Take(syncChunkSize);
                         string syncArgs = "sync " + string.Join(" ", chunk.Select(f => $"\"{f}\""));
-                        int code = await RunProcessAsync("p4", syncArgs, AppendGWEditorLog, root);
+                        int code = await RunProcessAsync("p4", syncArgs, AppendSharedLog, root);
                         if (code != 0)
                         {
-                            AppendGWEditorLog($"[ERROR] Data Sync 실패 (CL={cl}, ExitCode={code})");
+                            AppendSharedLog($"[ERROR] Data Sync 실패 (CL={cl}, ExitCode={code})");
                             return;
                         }
                     }
                 }
 
-                AppendGWEditorLog("");
-                AppendGWEditorLog($"[OK] Data Sync 완료. 총 {targetCLs.Count}개 CL 반영");
-                AppendGWEditorLog("=== Data Sync 완료 ===");
+                AppendSharedLog("");
+                AppendSharedLog($"[OK] Data Sync 완료. 총 {targetCLs.Count}개 CL 반영");
+                AppendSharedLog("=== Data Sync 완료 ===");
             }
             finally
             {
@@ -1787,14 +1783,14 @@ namespace BravoGameLauncherGui
             string buildCLText = (TbGWEditorBuildCL?.Text ?? "").Trim();
             if (!int.TryParse(buildCLText, out int buildCL) || buildCL <= 0)
             {
-                AppendGWEditorLog("[WARN] GW_ProjectBuild CL이 유효하지 않습니다. [새로고침] 후 다시 시도하세요.");
+                AppendSharedLog("[WARN] GW_ProjectBuild CL이 유효하지 않습니다. [새로고침] 후 다시 시도하세요.");
                 return;
             }
 
             string root = _gwEditorClientRoot ?? "";
             if (string.IsNullOrWhiteSpace(root))
             {
-                AppendGWEditorLog("[WARN] Client Root를 확인할 수 없습니다. [새로고침] 후 다시 시도하세요.");
+                AppendSharedLog("[WARN] Client Root를 확인할 수 없습니다. [새로고침] 후 다시 시도하세요.");
                 MessageBox.Show("Client Root를 확인할 수 없습니다.\n\n[새로고침] 후 다시 시도하세요.", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -1803,7 +1799,7 @@ namespace BravoGameLauncherGui
             int localCL = int.TryParse(localCLText, out int lcl) ? lcl : 0;
             if (localCL <= buildCL)
             {
-                AppendGWEditorLog("[WARN] Local Rollback은 Local CL이 GW_ProjectBuild CL보다 클 때만 사용할 수 있습니다.");
+                AppendSharedLog("[WARN] Local Rollback은 Local CL이 GW_ProjectBuild CL보다 클 때만 사용할 수 있습니다.");
                 return;
             }
 
@@ -1815,19 +1811,19 @@ namespace BravoGameLauncherGui
 
             if (confirm != MessageBoxResult.Yes)
             {
-                AppendGWEditorLog("[INFO] 사용자가 취소했습니다.");
+                AppendSharedLog("[INFO] 사용자가 취소했습니다.");
                 return;
             }
 
             SetGWEditorInteractionLocked(true);
             try
             {
-                AppendGWEditorLog($"=== Local Rollback: p4 sync //...@{buildCL} ===");
-                int code = await RunProcessAsync("p4", $"sync //...@{buildCL}", AppendGWEditorLog, root);
+                AppendSharedLog($"=== Local Rollback: p4 sync //...@{buildCL} ===");
+                int code = await RunProcessAsync("p4", $"sync //...@{buildCL}", AppendSharedLog, root);
                 if (code != 0)
-                    AppendGWEditorLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
+                    AppendSharedLog($"[ERROR] p4 sync 실패 (ExitCode={code})");
                 else
-                    AppendGWEditorLog("=== Local Rollback 완료 ===");
+                    AppendSharedLog("=== Local Rollback 완료 ===");
             }
             finally
             {
@@ -2082,7 +2078,7 @@ namespace BravoGameLauncherGui
                 Directory.CreateDirectory(installRoot);
 
                 // 서버 latest.json
-                _engineLatest = await InstalledBuildServices.GetLatestAsync(_engineVersion, AppendEngineLog);
+                _engineLatest = await InstalledBuildServices.GetLatestAsync(_engineVersion, AppendSharedLog);
 
                 // 로컬 meta
                 _engineLocalMeta = InstalledBuildServices.TryLoadLocalMeta(installRoot);
@@ -2116,7 +2112,7 @@ namespace BravoGameLauncherGui
             }
             catch (Exception ex)
             {
-                AppendEngineLog($"[ERROR] 상태 확인 실패: {ex.Message}");
+                AppendSharedLog($"[ERROR] 상태 확인 실패: {ex.Message}");
                 TxtEngineProgress.Text = "오류";
             }
             finally
@@ -2133,11 +2129,11 @@ namespace BravoGameLauncherGui
             try
             {
                 if (_engineLatest == null)
-                    _engineLatest = await InstalledBuildServices.GetLatestAsync(_engineVersion, AppendEngineLog);
+                    _engineLatest = await InstalledBuildServices.GetLatestAsync(_engineVersion, AppendSharedLog);
 
                 if (_engineLatest == null)
                 {
-                    AppendEngineLog("[ERROR] 서버 latest.json 로드 실패");
+                    AppendSharedLog("[ERROR] 서버 latest.json 로드 실패");
                     return;
                 }
 
@@ -2155,7 +2151,7 @@ namespace BravoGameLauncherGui
                     url: _engineLatest.zip.url,
                     destZipPath: zipPath,
                     expectedSize: _engineLatest.zip.size,
-                    log: AppendEngineLog,
+                    log: AppendSharedLog,
                     progress: (p, readBytes, totalBytes) =>
                     {
                         bool unknownTotal = totalBytes <= 0 && p < 100;
@@ -2176,7 +2172,7 @@ namespace BravoGameLauncherGui
                     zipPath,
                     _engineLatest.zip.size,
                     _engineLatest.zip.sha256,
-                    AppendEngineLog);
+                    AppendSharedLog);
 
                 if (!ok)
                 {
@@ -2197,7 +2193,7 @@ namespace BravoGameLauncherGui
                 await InstalledBuildServices.ExtractAndApplyAsync(
                     zipPath: zipPath,
                     installRoot: installRoot,
-                    log: AppendEngineLog);
+                    log: AppendSharedLog);
 
                 // meta 갱신
                 InstalledBuildServices.SaveLocalMeta(installRoot, new InstalledBuildMeta
@@ -2211,7 +2207,7 @@ namespace BravoGameLauncherGui
                     zipUrl = _engineLatest.zip.url
                 });
 
-                AppendEngineLog("[SUCCESS] 설치 완료 및 meta 갱신");
+                AppendSharedLog("[SUCCESS] 설치 완료 및 meta 갱신");
 
                 // 이전 버전 zip 정리: 방금 설치에 사용한 zip만 남기고 InstallRoot에 쌓인 나머지 zip은 삭제(용량 누적 방지)
                 CleanupOldEngineZips(installRoot, zipPath);
@@ -2222,7 +2218,7 @@ namespace BravoGameLauncherGui
             }
             catch (Exception ex)
             {
-                AppendEngineLog($"[ERROR] 다운로드/설치 실패: {ex.Message}");
+                AppendSharedLog($"[ERROR] 다운로드/설치 실패: {ex.Message}");
                 TxtEngineProgress.Text = "오류";
             }
             finally
@@ -2254,17 +2250,17 @@ namespace BravoGameLauncherGui
                     try
                     {
                         File.Delete(zip);
-                        AppendEngineLog($"[INFO] 이전 버전 zip 삭제: {Path.GetFileName(zip)}");
+                        AppendSharedLog($"[INFO] 이전 버전 zip 삭제: {Path.GetFileName(zip)}");
                     }
                     catch (Exception ex)
                     {
-                        AppendEngineLog($"[WARN] 이전 zip 삭제 실패({Path.GetFileName(zip)}): {ex.Message}");
+                        AppendSharedLog($"[WARN] 이전 zip 삭제 실패({Path.GetFileName(zip)}): {ex.Message}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                AppendEngineLog($"[WARN] 이전 zip 정리 중 오류: {ex.Message}");
+                AppendSharedLog($"[WARN] 이전 zip 정리 중 오류: {ex.Message}");
             }
         }
 

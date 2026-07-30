@@ -1,6 +1,4 @@
-﻿using System.Configuration;
-using System.Data;
-using System.Windows;
+﻿using System.Windows;
 
 namespace BravoGameLauncherGui;
 
@@ -10,4 +8,3 @@ namespace BravoGameLauncherGui;
 public partial class App : System.Windows.Application
 {
 }
-

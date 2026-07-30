@@ -21,11 +21,5 @@ namespace BravoGameLauncherGui
         /// 윈도우 타이틀에 사용할 전체 문자열 (예: "GW Launcher v1").
         /// </summary>
         public static string WindowTitle => $"GW Launcher {VersionCode}";
-
-        /// <summary>
-        /// 서버와 버전 비교할 때 사용할 값.
-        /// 나중에 launcher.json 등에 1, 2, 3 으로 넣고 비교하면 됨.
-        /// </summary>
-        public static int VersionForServer => Version;
     }
 }

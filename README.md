@@ -679,7 +679,7 @@ GWServer.exe -port=7778 -MapBaseId=10111 -log -LogCmds="LogGW Verbose"
 #### ✔ AppSettings.cs
 - 캐시 경로 저장  
 - 최근 실행한 ZIP 기록 저장  
-- Engine 탭: Installed Build 기본 경로(`InstalledBuildBasePath`), 선택 엔진 버전(`SelectedEngineVersion`) 저장
+- Engine 탭: Installed Build 기본 경로(`InstalledBuildBasePath`) 저장 (엔진 버전은 UE5.6 고정)
 
 #### ✔ LauncherVersionInfo.cs
 - 런처 버전 정보 (정수 기반 버전: v1, v2, v3...)  

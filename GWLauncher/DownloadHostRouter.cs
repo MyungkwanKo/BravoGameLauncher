@@ -7,9 +7,6 @@ namespace BravoGameLauncherGui
         public const string MasterHost = "bravo-build.omnicraftlabs.co.kr";
         public const string AgentHost = "bravo-agent.omnicraftlabs.co.kr";
 
-        /// <summary>Master 고정 URL (JSON 매니페스트 조회용)</summary>
-        public static string MasterBuildsBaseUrl => BuildBaseUrl(MasterHost, "builds");
-
         public static string MasterInstalledBaseUrl => BuildBaseUrl(MasterHost, "installed");
 
         public static string PickPrimaryHost()
