@@ -397,21 +397,21 @@
                                 Click="BtnGameStarterArgsReset_Click"/>
                     </Grid>
 
-                    <!-- DS 실행 옵션 (GWServer.exe 인자): 2줄 높이, 줄바꿈 표시 -->
+                    <!-- DS 실행 옵션 (GWServer.exe 인자): 1줄 높이 -->
                     <Grid Grid.Row="3" Margin="10,0,10,4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*" MinWidth="120"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="DS 실행 옵션:" VerticalAlignment="Top" Margin="0,4,8,0"/>
-                        <TextBox Grid.Column="1" x:Name="TbGameStarterDsArgs" MinHeight="48" Height="48" MinWidth="0"
-                                 VerticalContentAlignment="Top"
-                                 Text="-log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1"
-                                 TextWrapping="Wrap" AcceptsReturn="False"
-                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>
-                        <Button Grid.Column="2" x:Name="BtnGameStarterDsArgsReset" Content="Reset" Width="60" Height="24" Margin="8,4,0,0"
-                                VerticalAlignment="Top" Click="BtnGameStarterDsArgsReset_Click"/>
+                        <TextBlock Grid.Column="0" Text="DS 실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox Grid.Column="1" x:Name="TbGameStarterDsArgs" MinHeight="28" Height="28" MinWidth="0"
+                                 VerticalContentAlignment="Center"
+                                 Text="-port=7778 -MapBaseId=10111 -log -LogCmds=&quot;LogGW Verbose&quot;"
+                                 TextWrapping="NoWrap" AcceptsReturn="False"
+                                 VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Auto"/>
+                        <Button Grid.Column="2" x:Name="BtnGameStarterDsArgsReset" Content="Reset" Width="60" Height="24" Margin="8,0,0,0"
+                                VerticalAlignment="Center" Click="BtnGameStarterDsArgsReset_Click"/>
                     </Grid>
 
                     <!-- 캐시 경로 -->

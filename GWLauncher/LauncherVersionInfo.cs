@@ -10,7 +10,7 @@ namespace BravoGameLauncherGui
         /// <summary>
         /// 런처 정수 버전. v1, v2, v3... 의 숫자 부분. 버전 업데이트 시 여기만 수정
         /// </summary>
-        public const int Version = 27;
+        public const int Version = 28;
 
         /// <summary>
         /// 화면에 표시할 코드 형태 (예: "v1").

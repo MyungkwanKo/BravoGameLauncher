@@ -16,12 +16,11 @@ namespace BravoGameLauncherGui
         private static readonly HttpClient HttpClient = new();
 
         /// <summary>GameStarter 클라이언트(GW.exe) 기본 실행 인자.</summary>
-        public const string DefaultClientLaunchArgs =
-            "-trace=NetChannel,Cpu,Frame,Bookmark -tracefile -statnamedevents";
+        public const string DefaultClientLaunchArgs = "";
 
         /// <summary>GameStarter DS(GWServer.exe) 기본 실행 인자.</summary>
         public const string DefaultDedicatedServerArgs =
-            "-log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1";
+            "-port=7778 -MapBaseId=10111 -log -LogCmds=\"LogGW Verbose\"";
 
         public string RootDownloadDir { get; private set; }
 

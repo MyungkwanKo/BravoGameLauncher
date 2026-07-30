@@ -16,6 +16,20 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` |
 
 ---
+## 🆕 v28 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v28** (`LauncherVersionInfo.Version`)
+
+### ✅ GW Sync 탭 — GWEditor 상태 메세지
+- Sync 필요 상태 메세지 문구를 "배포된 프로젝트 **빌드**가 있습니다..." → "배포된 프로젝트 **바이너리**가 있습니다..."로 수정
+
+### ✅ GameStarter 탭 — 클라이언트/DS 실행 옵션 기본값
+- 클라이언트 실행 옵션 기본값: 비움(공란). 초기 로드 시와 Reset 버튼 모두 빈 칸으로 표시
+- DS 실행 옵션 기본값: `-log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1` → `-port=7778 -MapBaseId=10111 -log -LogCmds="LogGW Verbose"`
+- DS 실행 옵션 입력칸 높이를 1줄(28px)로 축소(기존 2줄/48px)
+
+---
 ## 🆕 v27 변경 사항 요약
 
 ### ✅ 버전
@@ -867,6 +881,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v28 | 2026-07-30 | GW Sync: GWEditor 상태 메세지 "배포된 프로젝트 빌드가 있습니다" → "배포된 프로젝트 바이너리가 있습니다"; GameStarter: 클라이언트 실행 옵션 기본값 비움, DS 실행 옵션 기본값을 `-port=7778 -MapBaseId=10111 -log -LogCmds="LogGW Verbose"`로 변경, DS 입력칸 1줄 높이로 축소 |
 | v27 | 2026-07-24 | GameStarter: DS 실행 옵션 기본값에서 맵 지정(`/GWBattleRoyale/Maps/L_BR_Proto?port=7778`) 제거 |
 | v26 | 2026-07-08 | Engine·Setup p4·GWEditor 탭을 **"GW Sync" 탭 하나**로 통합(접이식 섹션, 상태 점·좌측정렬 요약, 경고 시 헤더 배경 강조, 자동 펼침은 최초 1회만); 통합 로그창은 **가변 높이**(세션 접으면 자동 확대, 펼치면 축소, 최소 80px 보장, 넘치면 세션 영역에 스크롤바); Perforce 설정에 **워크스페이스 조회 팝업**(P4User+로컬 host 기준) 추가, **탭 진입마다 매번** 현재 P4CLIENT 재조회(미적용 값은 덮어씀); Engine 섹션 **UE Version 드롭다운 제거**(UE5.6 고정), **다운로드 단독 버튼 제거**(다운로드+설치만 유지), 설치 성공 시 **이전 버전 zip 자동 삭제**; GWEditor는 **Engine 미설치 시 실행 버튼에 경고**만 표시하고 실행 시도 안 함 |
 | v25 | 2026-07-03 | Engine·GameStarter: **Master/Agent ZIP 분산**(ms 홀/짝 + failover, 부분 ZIP 삭제, 취소 시 failover 제외), `DownloadHostRouter`·`DownloadWithFailover`; JSON Master 고정; Coop 소스 링크(별도 배포) |

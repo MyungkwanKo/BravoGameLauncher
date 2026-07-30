@@ -1503,7 +1503,7 @@ namespace BravoGameLauncherGui
             int statusKind;
             if (needSync)
             {
-                status = "배포된 프로젝트 빌드가 있습니다. 동기화 필요 합니다.";
+                status = "배포된 프로젝트 바이너리가 있습니다. 동기화 필요 합니다.";
                 statusKind = 1;
             }
             else if (buildCL == localCL)
