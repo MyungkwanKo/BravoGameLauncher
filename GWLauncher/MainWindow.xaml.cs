@@ -72,7 +72,6 @@ namespace BravoGameLauncherGui
             AppendLog(string.Empty);
 
             CmbBuildType.SelectionChanged += (_, __) => RefreshBuildListUI();
-            _engineUiReady = true;
             Loaded += async (_, __) =>
             {
                 try { await RefreshFromServerAsync(); }
@@ -2029,7 +2028,6 @@ namespace BravoGameLauncherGui
 
         // Engine(Installed Build) 버전 — 변경이 거의 없어 드롭다운 없이 UE5.6 고정 사용
         private readonly string _engineVersion = "UE5.6";
-        private bool _engineUiReady = false;
 
         // Engine 탭 상태
         private InstalledBuildLatest? _engineLatest;
