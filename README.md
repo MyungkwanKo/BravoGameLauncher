@@ -16,6 +16,17 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` |
 
 ---
+## 🆕 v29 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v29** (`LauncherVersionInfo.Version`)
+
+### ✅ Coop 런처 삭제
+- 협업부서용 `Coop/` (CoopLauncher 프로젝트 + `publish-coop-launcher.ps1`) 전체 삭제. 현재 사용처가 없어 제거하며, 향후 협업부서 지원이 다시 필요해지면 그때 별도 런처를 새로 제작할 예정
+- GWLauncher는 Coop을 참조하지 않으므로(반대로 Coop이 GWLauncher의 일부 소스를 링크 컴파일하던 구조) 이번 삭제는 GWLauncher 빌드/동작에 영향 없음
+- README 전체 프로젝트 구조 문서에서 Coop 관련 항목 제거, Jenkinsfile.groovy의 Coop 관련 주석 정리(과거 변경이력의 Coop 언급은 기록 보존을 위해 유지)
+
+---
 ## 🆕 v28 변경 사항 요약
 
 ### ✅ 버전
@@ -84,7 +95,6 @@
 - 다운로드 시 `[HOST] primary=…, failover=…` 로그로 호스트·결과 확인 가능.
 - 공용 클래스: `DownloadHostRouter.cs`, `DownloadWithFailover.cs`.
 - **`builds.json`·`latest.json`은 Master 고정** — 목록/매니페스트만 Master, ZIP만 분산.
-- **Coop 런처:** `GameBuildLauncher.cs` 및 공용 클래스 **링크 컴파일**로 소스는 자동 반영. 사용자 PC 반영은 **Coop 별도 재빌드·배포** 필요.
 
 ---
 ## 🆕 v23 변경 사항 요약
@@ -454,11 +464,6 @@ GWLauncher는 좌측 탭 메뉴 기반으로 기능을 제공합니다.
 │     ├─ LauncherVersionInfo.cs
 │     └─ (통합 런처 관련 전체 스크립트)
 │
-├─ Coop/                          ← 협업부서 배포용 CoopLauncher (GameStarter만, 별도 빌드)
-│     ├─ Coop.sln
-│     ├─ CoopLauncher/ …
-│     └─ publish-coop-launcher.ps1
-│
 └─ Run_GWLauncher/                ← 런처 스타터
       ├─ Program.cs
       ├─ LauncherState.cs
@@ -594,9 +599,9 @@ GW Launcher v2에서 반영된 핵심 변경 사항입니다.
 - **Server 실행**: 클라이언트만 실행하며 DS는 다운로드/실행하지 않습니다.
 
 ### DS 실행 커맨드 (기본값)
-GameStarter **DS 실행 옵션** 기본값(v27, Reset 시 동일). UI에서 수정 가능.
+GameStarter **DS 실행 옵션** 기본값(v28, Reset 시 동일). UI에서 수정 가능.
 ```
-GWServer.exe -log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefile -NetTrace=1
+GWServer.exe -port=7778 -MapBaseId=10111 -log -LogCmds="LogGW Verbose"
 ```
 
 ## ✅ DS 다운로드 버튼 정책
@@ -620,9 +625,6 @@ GWServer.exe -log -trace=cpu,frame,net,bookmark,stats -statnamedevents -tracefil
 │     ├─ DownloadProgressFormatter.cs
 │     ├─ LauncherVersionInfo.cs
 │     └─ ... (런처 관련 전체 스크립트)
-│
-├─ Coop/                          ← CoopLauncher (협업부서용, 선택 빌드)
-│     └─ …
 │
 └─ Run_GWLauncher/                ← 런처 스타터(콘솔)
       ├─ Program.cs
@@ -881,6 +883,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v29 | 2026-07-30 | 협업부서용 Coop 런처(`Coop/CoopLauncher`, `publish-coop-launcher.ps1`) 삭제 — 현재 미사용, 필요 시 향후 별도 런처로 재제작 예정 |
 | v28 | 2026-07-30 | GW Sync: GWEditor 상태 메세지 "배포된 프로젝트 빌드가 있습니다" → "배포된 프로젝트 바이너리가 있습니다"; GameStarter: 클라이언트 실행 옵션 기본값 비움, DS 실행 옵션 기본값을 `-port=7778 -MapBaseId=10111 -log -LogCmds="LogGW Verbose"`로 변경, DS 입력칸 1줄 높이로 축소 |
 | v27 | 2026-07-24 | GameStarter: DS 실행 옵션 기본값에서 맵 지정(`/GWBattleRoyale/Maps/L_BR_Proto?port=7778`) 제거 |
 | v26 | 2026-07-08 | Engine·Setup p4·GWEditor 탭을 **"GW Sync" 탭 하나**로 통합(접이식 섹션, 상태 점·좌측정렬 요약, 경고 시 헤더 배경 강조, 자동 펼침은 최초 1회만); 통합 로그창은 **가변 높이**(세션 접으면 자동 확대, 펼치면 축소, 최소 80px 보장, 넘치면 세션 영역에 스크롤바); Perforce 설정에 **워크스페이스 조회 팝업**(P4User+로컬 host 기준) 추가, **탭 진입마다 매번** 현재 P4CLIENT 재조회(미적용 값은 덮어씀); Engine 섹션 **UE Version 드롭다운 제거**(UE5.6 고정), **다운로드 단독 버튼 제거**(다운로드+설치만 유지), 설치 성공 시 **이전 버전 zip 자동 삭제**; GWEditor는 **Engine 미설치 시 실행 버튼에 경고**만 표시하고 실행 시도 안 함 |

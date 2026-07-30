@@ -50,7 +50,7 @@ pipeline {
         powershell '''
           $ErrorActionPreference = "Stop"
 
-          # GW 런처만 빌드·배포: Coop 등 다른 LauncherVersionInfo.cs는 사용하지 않음
+          # GW 런처만 빌드·배포 (Run_GWLauncher 등 다른 LauncherVersionInfo.cs는 사용하지 않음)
           $gwDir = Join-Path $env:WORKSPACE "GWLauncher"
           $filePath = Join-Path $gwDir "LauncherVersionInfo.cs"
           if (-not (Test-Path -LiteralPath $filePath)) {
