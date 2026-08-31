@@ -10,6 +10,7 @@ pipeline {
   parameters {
     string(name: 'RELEASE_NOTES', defaultValue: '', description: '릴리즈 노트(launcher.json releaseNotes에 반영)')
     booleanParam(name: 'FORCE_UPDATE', defaultValue: true, description: '강제 업데이트 여부(true면 minSupportedVersion=latestVersion)')
+    booleanParam(name: 'DEPLOY_CRASH_RELAY', defaultValue: false, description: '크래시 로그 릴레이(GWCrashRelay) 서비스도 함께 배포할지 여부. 릴레이 코드가 바뀐 경우에만 체크')
   }
 
   environment {
@@ -147,6 +148,22 @@ pipeline {
           if errorlevel 1 exit /b 1
 
           endlocal
+        '''
+      }
+    }
+
+    // 크래시 로그 릴레이(#PJTGW-3099)는 런처와 배포 주기가 다르므로 파라미터로 켤 때만 돈다.
+    // 실운영 설정(appsettings.Production.json, Slack 봇 토큰 포함)은 배포 스크립트가 보존한다.
+    stage('Deploy Crash Relay') {
+      when { expression { return params.DEPLOY_CRASH_RELAY } }
+      steps {
+        powershell '''
+          $ErrorActionPreference = "Stop"
+          $script = Join-Path $env:WORKSPACE "publish-crash-relay.ps1"
+          if (-not (Test-Path -LiteralPath $script)) {
+            throw "publish-crash-relay.ps1 not found: $script"
+          }
+          & $script -DeployRoot "D:\\Build\\CrashRelay" -ServiceName "GWCrashRelay"
         '''
       }
     }

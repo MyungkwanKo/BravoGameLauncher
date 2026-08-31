@@ -99,6 +99,32 @@ namespace BravoGameLauncherGui
             Directory.CreateDirectory(RootDownloadDir);
         }
 
+        /// <summary>
+        /// zip 파일명으로부터 로컬 캐시의 빌드 폴더 경로({캐시}\{version}\{buildName})를 계산한다.
+        /// 파일명에서 버전을 파싱하지 못하면 null. 다운로드/압축 해제와 크래시 로그 전송이 이 규칙을 공유한다.
+        /// </summary>
+        public string? GetBuildDir(string zipFileName)
+        {
+            if (string.IsNullOrWhiteSpace(zipFileName))
+                return null;
+
+            var (version, _, _) = ParseBuildInfoFromFileName(zipFileName);
+            if (string.IsNullOrWhiteSpace(version))
+                return null;
+
+            string buildName = Path.GetFileNameWithoutExtension(zipFileName);
+            return Path.Combine(RootDownloadDir, version, buildName);
+        }
+
+        /// <summary>
+        /// zip 파일명으로부터 압축 해제 폴더(unpacked) 경로를 계산한다. 파싱 실패 시 null.
+        /// </summary>
+        public string? GetClientUnpackDir(string zipFileName)
+        {
+            string? buildDir = GetBuildDir(zipFileName);
+            return buildDir == null ? null : Path.Combine(buildDir, "unpacked");
+        }
+
         public async Task RunDedicatedServerAsync(
             string dsZipFileName,
             Action<double, string?>? progress = null,
@@ -227,12 +253,12 @@ namespace BravoGameLauncherGui
             if (string.IsNullOrWhiteSpace(version))
                 throw new InvalidOperationException($"파일명에서 버전 정보를 파싱하지 못했습니다: {zipFileName}");
 
-            string buildName = Path.GetFileNameWithoutExtension(zipFileName);
             var (primaryUrl, fallbackUrl) = DownloadHostRouter.BuildZipUrls(
                 "builds", $"{version}/{platform}/{zipFileName}");
 
-            string versionDir = Path.Combine(RootDownloadDir, version);
-            string buildDir   = Path.Combine(versionDir, buildName);
+            // 경로 규칙은 GetBuildDir/GetClientUnpackDir와 공유한다(크래시 로그 전송도 같은 규칙을 사용).
+            string buildDir   = GetBuildDir(zipFileName)
+                                ?? throw new InvalidOperationException($"빌드 폴더 경로를 계산하지 못했습니다: {zipFileName}");
             string zipPath    = Path.Combine(buildDir, "build.zip");
             string unpackDir  = Path.Combine(buildDir, "unpacked");
 

@@ -16,6 +16,35 @@
 | 런처 스타터 (`launcher.json`, 런처 ZIP) | `http://bravo-build.omnicraftlabs.co.kr/launcher/` | `Run_GWLauncher/Program.cs`, Jenkins `DOWNLOAD_BASE_URL` |
 
 ---
+## 🆕 v30 변경 사항 요약
+
+### ✅ 버전
+- 런처 버전 **v30** (`LauncherVersionInfo.Version`)
+
+### ✅ GameStarter 탭 — 크래시 로그 Slack 전송 (#PJTGW-3099)
+- 캐시 경로 줄의 `캐시 경로 변경 | 캐시 삭제 | 바로가기` 우측에 **`크래시 로그 전송`** 버튼 추가(`BtnSendCrashLog`). GameStarter 장시간 작업 중에는 다른 버튼과 함께 비활성화(`SetGameStarterInteractionLocked`).
+- 대상 경로는 선택한 빌드의 **`{캐시}\{version}\{buildName}\unpacked\GW\Saved\Crashes`**. 폴더가 없거나 비어 있으면 **경고 팝업만 띄우고 종료**한다.
+- 동작 순서: 빌드/폴더 검증 → (100MB 초과 시 용량 확인) → **크래시 상황 입력 창** → 확인 시 zip 압축 → **릴레이 서버로 자동 업로드** → 전송 완료 팝업. **입력 창에서 취소하면 zip 압축조차 하지 않고 즉시 종료**한다.
+- **크래시 상황 입력 창**(`CrashReportInputWindow`): 최대 **100자**, 글자 수 카운터(90자부터 주황색), 내용이 없으면(공백만 입력 포함) 확인 버튼 비활성, Esc·취소 시 종료.
+- **전송 방식 — 사내 릴레이 서버 경유 자동 전송**
+  - 런처는 빌드 머신의 `GWCrashRelay`(`http://bravo-build.omnicraftlabs.co.kr/crash-report/upload`)로 zip과 메시지를 multipart 업로드하고, **릴레이가 Slack 채널에 파일과 메시지를 올린다.** 사용자는 버튼 한 번만 누르면 된다. 업로드 진행률은 GameStarter 진행바에 표시된다.
+  - Slack API `files.upload`은 2025-11-12 sunset이고 후속 API(`files.getUploadURLExternal` + `files.completeUploadExternal`)는 **토큰이 필수**다. 토큰을 클라이언트에 두면 사내 누구나 추출할 수 있어(`krafton-security.mdc`의 하드코딩 시크릿 금지) **토큰을 서버에만 두는 릴레이 방식**을 택했다.
+  - 서버·설정·Slack 앱 준비·Nginx 설정은 [`CrashRelay/README.md`](CrashRelay/README.md) 참고.
+  - **폴백**: 릴레이가 죽었거나 응답하지 않으면 "Slack에 직접 붙여넣어 전송하시겠습니까?"를 묻고, 예를 선택하면 zip을 클립보드(CF_HDROP + 텍스트)에 올린 뒤 채널을 딥링크로 열어 사용자가 `Ctrl+V → Enter` 하도록 안내한다.
+    - 채널 열기는 **① `slack://channel?team={SlackTeamId}&id={SlackChannelId}` → ② `SlackChannelLink`(웹 클라이언트) → ③ `app_redirect`** 순.
+    - KRAFTON은 **Enterprise Grid** 라 웹 클라이언트 URL이 `https://app.slack.com/client/E01DL1Z9D6Z/{채널ID}` 처럼 **조직 ID(`E...`)가 팀 자리에** 들어간다. 딥링크 `team`에도 같은 값을 쓴다.
+    - `app_redirect`만 쓰고 `team`을 비우면 **기본 워크스페이스로 이동**해 "결함이 있습니다" 오류 페이지가 뜬다(v30 개발 중 실제 발생).
+    - `slack://` 실행은 URL 핸들러만 등록돼 있으면 프로세스 시작이 성공해 **앱이 실제로 채널을 열었는지 코드로 판별할 수 없다.** 그래서 안내 창에 `채널 열기(웹)` 버튼을 둔다.
+- **전송 취소**: 압축·업로드가 진행되는 동안 `크래시 로그 전송` 버튼이 **`전송 취소`로 바뀌어 활성 상태로 남는다.** 누르면 압축/업로드를 중단하며, 압축 도중이면 만들던 zip도 지운다. 업로드 타임아웃은 5분이고, 초과 시 수동 폴백 여부를 묻는다.
+- zip은 `%TEMP%\GWLauncher\CrashReports\Crash_{buildName}_{PC계정}_{yyyyMMdd_HHmmss}.zip` 에 생성하고, **7일 지난 임시 zip은 새로 만들 때 자동 정리**한다. 게임이 잡고 있는 파일은 건너뛴다.
+- zip 최상위에 **`CrashReport.txt`** 를 동봉해 사용자가 입력한 상황 + 빌드명/보고자/PC/OS/런처 버전/작성 시각을 남긴다.
+- **폴백 안내 창**(`CrashReportGuideWindow`): Slack이 파일만 인식하고 텍스트를 흘리는 경우를 대비해 `채널 열기(웹)` · `파일 다시 복사` · `메시지 복사` · `폴더 열기` 버튼 제공.
+- 신규 파일 — 런처: `CrashLogReporter.cs`, `CrashReportInputWindow.xaml(.cs)`, `CrashReportGuideWindow.xaml(.cs)` / 서버: `CrashRelay/` (`Program.cs`, `SlackUploader.cs`) / 배포: `publish-crash-relay.ps1`, `Jenkinsfile.groovy`의 `DEPLOY_CRASH_RELAY` 파라미터 스테이지.
+- **대상 채널은 릴레이 서버 설정(`Relay:SlackChannelId`)에 고정**한다. 클라이언트가 채널을 지정할 수 없어 임의 채널 전송이 불가능하다(폴백 딥링크용 상수만 런처에 남아 있음).
+- ⚠️ **배포 순서**: 릴레이 서버를 먼저 올린 뒤 런처 v30을 배포해야 한다. 순서가 바뀌면 전원 자동 전송 실패 후 폴백으로 떨어진다.
+- `GameBuildLauncher`에 **`GetBuildDir` / `GetClientUnpackDir` public 헬퍼**를 추가하고 `DownloadAndExtractWithProgressAsync`가 이를 쓰도록 정리 — 다운로드·압축 해제와 크래시 로그 전송이 빌드 폴더 경로 규칙을 공유한다.
+
+---
 ## 🆕 v29 변경 사항 요약
 
 ### ✅ 버전
@@ -883,6 +912,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v30 | 2026-08-28 | GameStarter: **크래시 로그 Slack 자동 전송** 버튼 추가 (#PJTGW-3099) — 선택 빌드의 `unpacked\GW\Saved\Crashes` 를 zip 압축 후 사내 릴레이(`CrashRelay`, 빌드 머신)로 업로드하면 릴레이가 Slack 채널에 파일+메시지 게시(봇 토큰은 서버에만 존재). 크래시 상황 입력 창(최대 100자, 미입력 시 확인 비활성, 취소 시 압축 안 함), 폴더 없음/용량 초과 가드, `CrashReport.txt` 동봉, 임시 zip 7일 자동 정리, 릴레이 실패 시 클립보드+딥링크 수동 폴백; `GameBuildLauncher.GetBuildDir`/`GetClientUnpackDir` public 헬퍼로 경로 규칙 공유 |
 | v29 | 2026-07-30 | 협업부서용 Coop 런처(`Coop/CoopLauncher`, `publish-coop-launcher.ps1`) 삭제 — 현재 미사용, 필요 시 향후 별도 런처로 재제작 예정 |
 | v28 | 2026-07-30 | GW Sync: GWEditor 상태 메세지 "배포된 프로젝트 빌드가 있습니다" → "배포된 프로젝트 바이너리가 있습니다"; GameStarter: 클라이언트 실행 옵션 기본값 비움, DS 실행 옵션 기본값을 `-port=7778 -MapBaseId=10111 -log -LogCmds="LogGW Verbose"`로 변경, DS 입력칸 1줄 높이로 축소 |
 | v27 | 2026-07-24 | GameStarter: DS 실행 옵션 기본값에서 맵 지정(`/GWBattleRoyale/Maps/L_BR_Proto?port=7778`) 제거 |

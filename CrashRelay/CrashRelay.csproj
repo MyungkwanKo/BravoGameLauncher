@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>GWCrashRelay</AssemblyName>
+    <RootNamespace>GWCrashRelay</RootNamespace>
+    <!-- 빌드 머신이 오프라인이어도 publish 되도록 외부 NuGet 패키지를 쓰지 않는다.
+         (사용하는 기능은 모두 Microsoft.AspNetCore.App 공유 프레임워크에 포함) -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 샘플 설정은 배포 산출물에 포함하지 않는다(실제 appsettings.Production.json 과 혼동 방지) -->
+    <Content Remove="appsettings.Production.sample.json" />
+    <None Include="appsettings.Production.sample.json" />
+  </ItemGroup>
+
+</Project>

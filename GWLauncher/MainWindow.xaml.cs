@@ -23,6 +23,9 @@ namespace BravoGameLauncherGui
         // 서버에서 받은 전체 빌드 목록 (WIN·DS 합집합, 동일 DS는 WIN 행에 페어링된 경우 DS 전용 행에서 제외)
         private List<ServerBuildItem> _allBuilds = new();
 
+        // 크래시 로그 압축·업로드 취소용. null이 아니면 전송이 진행 중이라는 뜻이다.
+        private System.Threading.CancellationTokenSource? _crashSendCts;
+
         private class ServerBuildItem
         {
             public int    BuildNo   { get; set; }               // Jenkins build number
@@ -160,6 +163,7 @@ namespace BravoGameLauncherGui
             if (BtnChangeCachePath != null) BtnChangeCachePath.IsEnabled = en;
             if (BtnClearCache != null) BtnClearCache.IsEnabled = en;
             if (BtnOpenCachePath != null) BtnOpenCachePath.IsEnabled = en;
+            if (BtnSendCrashLog != null) BtnSendCrashLog.IsEnabled = en;
             if (TbGameStarterArgs != null) TbGameStarterArgs.IsEnabled = en;
             if (TbGameStarterDsArgs != null) TbGameStarterDsArgs.IsEnabled = en;
             if (LvBuilds != null) LvBuilds.IsEnabled = en;
@@ -291,6 +295,244 @@ namespace BravoGameLauncherGui
                 AppendLog($"[ERROR] 캐시 경로 열기 실패: {ex.Message}");
                 MessageBox.Show($"탐색기 열기 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// GameStarter 탭 - 선택한 빌드의 크래시 로그를 zip으로 묶어 Slack 채널로 전송한다 (#PJTGW-3099).
+        /// 기본 경로는 사내 릴레이 서버(GWCrashRelay)로 자동 업로드하는 것이고,
+        /// 릴레이가 응답하지 않을 때만 클립보드 + 딥링크 수동 전송으로 폴백한다.
+        /// </summary>
+        private async void BtnSendCrashLog_Click(object sender, RoutedEventArgs e)
+        {
+            // 전송 중이면 같은 버튼이 "전송 취소"로 동작한다.
+            if (_crashSendCts != null)
+            {
+                AppendLog("[INFO] 크래시 로그 전송 취소를 요청했습니다...");
+                try
+                {
+                    _crashSendCts.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // 이미 끝난 직후라면 무시
+                }
+                return;
+            }
+
+            // 1) 빌드 선택 확인
+            if (LvBuilds.SelectedItem is not ServerBuildItem selected)
+            {
+                AppendLog("[WARN] 크래시 로그를 전송할 빌드를 선택하세요.");
+                MessageBox.Show(
+                    "크래시 로그를 전송할 빌드를 먼저 선택해주세요.",
+                    "빌드 선택",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            // 2) 클라이언트(WIN) 패키지가 있는 빌드만 크래시 로그 경로를 갖는다
+            if (string.IsNullOrWhiteSpace(selected.FileName))
+            {
+                AppendLog("[WARN] 선택한 빌드에는 클라이언트(WIN) 패키지가 없어 크래시 로그 경로를 찾을 수 없습니다.");
+                MessageBox.Show(
+                    "선택한 빌드에는 클라이언트(WIN) 패키지가 없습니다.\n크래시 로그는 클라이언트 빌드에서만 수집됩니다.",
+                    "크래시 로그 전송",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            string? unpackDir = _launcher.GetClientUnpackDir(selected.FileName);
+            if (string.IsNullOrWhiteSpace(unpackDir))
+            {
+                AppendLog($"[WARN] 빌드 파일명에서 로컬 경로를 계산하지 못했습니다: {selected.FileName}");
+                MessageBox.Show(
+                    $"빌드 파일명에서 로컬 경로를 계산하지 못했습니다.\n\n{selected.FileName}",
+                    "크래시 로그 전송",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            // 3) 크래시 로그 폴더 확인 (없거나 비어 있으면 경고 후 종료)
+            string crashesDir = CrashLogReporter.GetCrashesDir(unpackDir);
+            if (!CrashLogReporter.HasCrashLogs(crashesDir))
+            {
+                AppendLog($"[WARN] 크래시 로그 폴더가 없거나 비어 있습니다: {crashesDir}");
+                MessageBox.Show(
+                    "크래시 로그 폴더가 없거나 비어 있습니다.\n\n" +
+                    $"경로: {crashesDir}\n\n" +
+                    "해당 빌드를 실행한 뒤 크래시가 발생한 경우에만 생성됩니다.",
+                    "크래시 로그 없음",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            // 4) 용량이 크면 압축 전에 한 번 확인
+            var (totalBytes, fileCount) = CrashLogReporter.Measure(crashesDir);
+            if (totalBytes > CrashLogReporter.SizeWarningThresholdBytes)
+            {
+                var answer = MessageBox.Show(
+                    $"크래시 로그 용량이 큽니다. ({CrashLogReporter.FormatSize(totalBytes)}, 파일 {fileCount}개)\n" +
+                    "압축과 업로드에 시간이 걸릴 수 있습니다.\n\n계속하시겠습니까?",
+                    "용량 확인",
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Warning);
+
+                if (answer != MessageBoxResult.OK)
+                {
+                    AppendLog("[INFO] 크래시 로그 전송을 취소했습니다. (용량 확인 단계)");
+                    return;
+                }
+            }
+
+            // 5) 크래시 상황 입력 (취소하면 zip 압축도 하지 않고 종료)
+            string buildName = Path.GetFileNameWithoutExtension(selected.FileName);
+            var inputWindow = new CrashReportInputWindow(buildName) { Owner = this };
+            if (inputWindow.ShowDialog() != true)
+            {
+                AppendLog("[INFO] 크래시 로그 전송을 취소했습니다. (상황 입력 취소 - zip을 생성하지 않음)");
+                return;
+            }
+
+            string reportText = inputWindow.ReportText;
+
+            _crashSendCts = new System.Threading.CancellationTokenSource();
+            var cancellationToken = _crashSendCts.Token;
+
+            SetGameStarterInteractionLocked(true);
+            SetCrashSendButtonCancelMode(true);
+
+            try
+            {
+                AppendLog("=== 크래시 로그 전송 ===");
+                AppendLog($"[INFO] 대상 폴더: {crashesDir}");
+                AppendLog($"[INFO] 압축 시작... (파일 {fileCount}개, {CrashLogReporter.FormatSize(totalBytes)})");
+                SetGameStarterProgress(true, 0, "크래시 로그 압축 중...");
+
+                string zipPath = await Task.Run(
+                    () => CrashLogReporter.CreateZip(crashesDir, buildName, reportText, cancellationToken),
+                    cancellationToken);
+
+                long zipSize = new FileInfo(zipPath).Length;
+                AppendLog($"[INFO] 압축 완료: {zipPath} ({CrashLogReporter.FormatSize(zipSize)})");
+
+                // 6) 사내 릴레이 서버로 자동 전송 (서버가 Slack 채널에 파일 + 메시지를 올린다)
+                AppendLog($"[INFO] 릴레이 서버로 업로드 중... ({CrashLogReporter.RelayUploadUrl})");
+                SetGameStarterProgress(true, 0, "크래시 로그 업로드 준비 중...");
+
+                var uploadResult = await CrashLogReporter.UploadAsync(
+                    zipPath, buildName, reportText, ReportGameStarterProgress, cancellationToken);
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    SetGameStarterProgress(false, 0, "크래시 로그 전송 취소됨");
+                    AppendLog($"[INFO] 크래시 로그 전송을 취소했습니다. zip 경로: {zipPath}");
+                    return;
+                }
+
+                if (uploadResult.Ok)
+                {
+                    SetGameStarterProgress(false, 100, "크래시 로그 전송 완료");
+                    AppendLog("[INFO] 크래시 로그를 Slack 채널로 전송했습니다.");
+
+                    if (!string.IsNullOrWhiteSpace(uploadResult.Permalink))
+                        AppendLog($"       {uploadResult.Permalink}");
+
+                    MessageBox.Show(
+                        "크래시 로그를 Slack 채널로 전송했습니다.",
+                        "전송 완료",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                // 7) 자동 전송 실패 → 수동(클립보드 + 딥링크) 경로로 폴백할지 묻는다
+                AppendLog($"[ERROR] 자동 전송 실패: {uploadResult.Error}");
+                SetGameStarterProgress(false, 0, "크래시 로그 전송 실패");
+
+                var fallbackAnswer = MessageBox.Show(
+                    $"크래시 로그 자동 전송에 실패했습니다.\n\n{uploadResult.Error}\n\n" +
+                    "Slack에 직접 붙여넣어 전송하시겠습니까?\n(zip은 이미 만들어져 있습니다)",
+                    "전송 실패",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (fallbackAnswer != MessageBoxResult.Yes)
+                {
+                    AppendLog($"[INFO] 수동 전송을 선택하지 않았습니다. zip 경로: {zipPath}");
+                    return;
+                }
+
+                string message = CrashLogReporter.BuildSlackMessage(buildName, reportText);
+
+                // 8) 폴백: 클립보드에 zip(파일) + 메시지(텍스트)를 함께 올린다
+                if (!CrashLogReporter.TryCopyToClipboard(zipPath, message))
+                {
+                    AppendLog("[ERROR] 클립보드 복사에 실패했습니다. zip 폴더를 대신 열어드립니다.");
+                    CrashLogReporter.TryOpenFolder(Path.GetDirectoryName(zipPath) ?? CrashLogReporter.TempZipDir);
+                    MessageBox.Show(
+                        "클립보드 복사에 실패했습니다.\n탐색기에서 열린 zip 파일을 Slack 채널로 직접 끌어다 놓아주세요.\n\n" +
+                        zipPath,
+                        "크래시 로그 전송",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                // 9) Slack 채널 열기 (실패해도 클립보드에는 이미 올라가 있으므로 안내만 다르게 한다)
+                bool slackOpened = CrashLogReporter.TryOpenSlackChannel(out string slackUrl);
+                if (slackOpened)
+                    AppendLog($"[INFO] Slack 채널을 열었습니다. ({slackUrl})");
+                else
+                    AppendLog($"[WARN] Slack 채널 열기에 실패했습니다. Slack을 직접 열어 붙여넣어 주세요. (시도한 URL: {slackUrl})");
+
+                AppendLog("[INFO] zip을 클립보드에 복사했습니다. Slack 입력창에서 Ctrl+V 후 Enter로 전송하세요.");
+
+                var guideWindow = new CrashReportGuideWindow(zipPath, message, slackOpened) { Owner = this };
+                guideWindow.ShowDialog();
+            }
+            catch (OperationCanceledException)
+            {
+                // 압축 단계에서 취소한 경우 (만들던 zip은 CreateZip이 지운다)
+                SetGameStarterProgress(false, 0, "크래시 로그 전송 취소됨");
+                AppendLog("[INFO] 크래시 로그 전송을 취소했습니다.");
+            }
+            catch (Exception ex)
+            {
+                // 진행률 바를 켜 둔 채 예외가 나면 계속 돌아가므로 여기서 반드시 되돌린다.
+                SetGameStarterProgress(false, 0, "크래시 로그 전송 실패");
+
+                AppendLog($"[ERROR] 크래시 로그 전송 실패: {ex.Message}");
+                MessageBox.Show(
+                    $"크래시 로그 전송 준비 중 오류가 발생했습니다.\n\n{ex.Message}",
+                    "오류",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                _crashSendCts?.Dispose();
+                _crashSendCts = null;
+
+                SetCrashSendButtonCancelMode(false);
+                SetGameStarterInteractionLocked(false);
+            }
+        }
+
+        /// <summary>
+        /// 크래시 로그 전송 중에는 전송 버튼을 "전송 취소"로 바꿔 활성 상태로 둔다.
+        /// (다른 GameStarter 조작은 SetGameStarterInteractionLocked가 잠근 상태를 유지)
+        /// </summary>
+        private void SetCrashSendButtonCancelMode(bool cancelMode)
+        {
+            if (BtnSendCrashLog == null)
+                return;
+
+            BtnSendCrashLog.Content = cancelMode ? "전송 취소" : "크래시 로그 전송";
+            BtnSendCrashLog.IsEnabled = true;
         }
 
         private async void BtnRefreshFromServer_Click(object sender, RoutedEventArgs e)

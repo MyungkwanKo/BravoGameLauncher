@@ -426,6 +426,8 @@
                                 Click="MenuClearCache_Click"/>
                         <Button x:Name="BtnOpenCachePath" Content="바로가기" Width="70" Height="24" Margin="8,0,0,0"
                                 Click="BtnOpenCachePath_Click"/>
+                        <Button x:Name="BtnSendCrashLog" Content="크래시 로그 전송" Width="130" Height="24" Margin="8,0,0,0"
+                                Click="BtnSendCrashLog_Click"/>
                     </StackPanel>
 
                     <!-- 빌드 리스트: 체크박스 선택 컬럼 + v2 최종 컬럼 (가로 스크롤바 비활성 → 하단 로그와 겹침 방지) -->
