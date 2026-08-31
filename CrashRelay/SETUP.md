@@ -347,6 +347,40 @@ curl.exe -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/upload `
 
 ---
 
+## 설정 변경 (토큰·채널 교체 등)
+
+STEP 5에서 상속을 끊고 **읽기 권한만** 남겼기 때문에, 관리자 권한이어도 그냥은 저장되지 않는다.
+잠깐 쓰기 권한을 주고 고친 뒤 되돌린다. **관리자 PowerShell**에서 실행한다.
+
+```powershell
+$f = "D:\Build\CrashRelay\appsettings.Production.json"
+
+# 1) 관리자에게 전체 권한 임시 부여
+icacls $f /grant "Administrators:(F)"
+
+# 2) 수정 후 저장 (인코딩 UTF-8 유지)
+notepad $f
+
+# 3) 다시 읽기 전용으로 복구
+icacls $f /grant:r "Administrators:(R)"
+icacls $f
+```
+
+`/grant:r` 은 기존 항목을 **대체**하는 옵션이라 `(F)` 가 `(R)` 로 정확히 바뀐다. SYSTEM 항목은 그대로 유지된다.
+
+변경 후에는 서비스를 재시작해야 반영된다.
+
+```powershell
+Restart-Service GWCrashRelay
+curl.exe http://127.0.0.1:5080/health
+```
+
+> 채널만 바꾸는 경우 **런처는 재배포하지 않아도 된다.** 릴레이가 채널을 결정하기 때문이다.
+> 다만 전송 실패 시 폴백으로 여는 딥링크 채널은 런처 상수(`CrashLogReporter.SlackChannelId` /
+> `SlackChannelLink`)에 있으므로, 폴백 경로까지 맞추려면 런처도 함께 갱신해야 한다.
+
+---
+
 ## 이후 업데이트 배포
 
 릴레이 코드가 바뀌었을 때만 하면 된다. `appsettings.Production.json` 은 스크립트가 보존한다.
