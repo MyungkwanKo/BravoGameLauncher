@@ -420,7 +420,8 @@ namespace BravoGameLauncherGui
                 AppendLog($"[INFO] 압축 완료: {zipPath} ({CrashLogReporter.FormatSize(zipSize)})");
 
                 // 6) 사내 릴레이 서버로 자동 전송 (서버가 Slack 채널에 파일 + 메시지를 올린다)
-                AppendLog($"[INFO] 릴레이 서버로 업로드 중... ({CrashLogReporter.RelayUploadUrl})");
+                // 보안상 로그에는 서버 URL·Slack 링크를 남기지 않는다.
+                AppendLog("[INFO] 릴레이 서버로 업로드 중...");
                 SetGameStarterProgress(true, 0, "크래시 로그 업로드 준비 중...");
 
                 var uploadResult = await CrashLogReporter.UploadAsync(
@@ -437,9 +438,6 @@ namespace BravoGameLauncherGui
                 {
                     SetGameStarterProgress(false, 100, "크래시 로그 전송 완료");
                     AppendLog("[INFO] 크래시 로그를 Slack 채널로 전송했습니다.");
-
-                    if (!string.IsNullOrWhiteSpace(uploadResult.Permalink))
-                        AppendLog($"       {uploadResult.Permalink}");
 
                     MessageBox.Show(
                         "크래시 로그를 Slack 채널로 전송했습니다.",
@@ -483,11 +481,11 @@ namespace BravoGameLauncherGui
                 }
 
                 // 9) Slack 채널 열기 (실패해도 클립보드에는 이미 올라가 있으므로 안내만 다르게 한다)
-                bool slackOpened = CrashLogReporter.TryOpenSlackChannel(out string slackUrl);
+                bool slackOpened = CrashLogReporter.TryOpenSlackChannel();
                 if (slackOpened)
-                    AppendLog($"[INFO] Slack 채널을 열었습니다. ({slackUrl})");
+                    AppendLog("[INFO] Slack 채널을 열었습니다.");
                 else
-                    AppendLog($"[WARN] Slack 채널 열기에 실패했습니다. Slack을 직접 열어 붙여넣어 주세요. (시도한 URL: {slackUrl})");
+                    AppendLog("[WARN] Slack 채널 열기에 실패했습니다. Slack을 직접 열어 붙여넣어 주세요.");
 
                 AppendLog("[INFO] zip을 클립보드에 복사했습니다. Slack 입력창에서 Ctrl+V 후 Enter로 전송하세요.");
 

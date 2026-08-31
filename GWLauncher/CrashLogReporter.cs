@@ -431,17 +431,10 @@ namespace BravoGameLauncherGui
         /// 실패하거나 팀 ID가 없으면 웹 app_redirect로 넘어간다.
         /// (팀 ID 없이 app_redirect만 쓰면 채널이 없는 기본 워크스페이스로 이동해 오류 페이지가 뜬다.)
         /// </summary>
-        public static bool TryOpenSlackChannel() => TryOpenSlackChannel(out _);
-
-        /// <param name="usedUrl">실제로 실행에 성공한 URL(로그용). 실패 시 마지막으로 시도한 URL.</param>
-        public static bool TryOpenSlackChannel(out string usedUrl)
+        public static bool TryOpenSlackChannel()
         {
-            usedUrl = string.Empty;
-
             foreach (string url in BuildChannelUrls())
             {
-                usedUrl = url;
-
                 try
                 {
                     Process.Start(new ProcessStartInfo

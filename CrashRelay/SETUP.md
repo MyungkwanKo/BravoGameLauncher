@@ -124,25 +124,7 @@ Get-Content D:\Build\CrashRelay\appsettings.Production.json -Raw | ConvertFrom-J
 
 ---
 
-## STEP 4. 토큰 파일 권한 제한
-
-일반 사용자가 토큰을 읽지 못하게 상속을 끊고 관리자·SYSTEM만 남긴다.
-
-```powershell
-icacls "D:\Build\CrashRelay\appsettings.Production.json" /inheritance:r /grant:r "Administrators:(R)" "SYSTEM:(R)"
-```
-
-확인.
-
-```powershell
-icacls "D:\Build\CrashRelay\appsettings.Production.json"
-```
-
-> 서비스를 SYSTEM 이 아닌 별도 계정으로 돌릴 계획이면 그 계정에도 `(R)` 을 추가해야 한다.
-
----
-
-## STEP 5. 수동 실행으로 동작 확인
+## STEP 4. 수동 실행으로 동작 확인
 
 서비스로 등록하기 전에 콘솔에서 직접 띄워 본다. 문제가 있으면 여기서 바로 로그가 보인다.
 
@@ -154,7 +136,11 @@ $env:ASPNETCORE_ENVIRONMENT = "Production"
 
 `Now listening on: http://127.0.0.1:5080` 이 뜨면 정상이다.
 
-**다른 PowerShell 창**을 열어 헬스체크한다.
+이 창은 **켜 둔 채로 놔둔다.** 서버가 여기서 계속 돌고 있어야 한다.
+
+이제 **다른 PowerShell 창**을 열어 헬스체크한다. 이 두 번째 창에서는 `curl` 만 치고,
+`GWCrashRelay.exe` 를 다시 실행하지 않는다. 다시 실행하면 첫 창이 이미 5080을 쓰고 있어
+`address already in use` 로 죽는다(서버가 정상 동작 중이라는 뜻이므로 당황할 필요 없다).
 
 ```powershell
 curl.exe http://127.0.0.1:5080/health
@@ -188,6 +174,34 @@ curl.exe -X POST http://127.0.0.1:5080/upload `
 | `서버에 Slack 설정이 없습니다` | 설정 파일을 못 읽음 | 파일 위치·인코딩·`ASPNETCORE_ENVIRONMENT` 확인 |
 
 확인이 끝나면 `Ctrl+C` 로 종료한다.
+
+---
+
+## STEP 5. 토큰 파일 권한 제한
+
+동작 확인이 끝난 뒤에 한다. **먼저 걸면 STEP 4의 콘솔 실행이 `UnauthorizedAccessException` 으로 죽는다.**
+
+일반 사용자가 토큰을 읽지 못하게 상속을 끊고 관리자·SYSTEM만 남긴다.
+
+```powershell
+icacls "D:\Build\CrashRelay\appsettings.Production.json" /inheritance:r /grant:r "Administrators:(R)" "SYSTEM:(R)"
+```
+
+확인.
+
+```powershell
+icacls "D:\Build\CrashRelay\appsettings.Production.json"
+```
+
+주의할 점
+
+- 이 뒤로 **콘솔에서 수동 실행하려면 반드시 관리자 권한 PowerShell** 이어야 한다(`Start-Process powershell -Verb RunAs`). 일반 창에서는 설정 파일을 못 읽고 죽는다
+- 서비스로 돌릴 때는 SYSTEM 계정이라 문제없다
+- 서비스를 SYSTEM 이 아닌 별도 계정으로 돌릴 계획이면 그 계정에도 `(R)` 을 추가해야 한다
+
+  ```powershell
+  icacls "D:\Build\CrashRelay\appsettings.Production.json" /grant "DOMAIN\서비스계정:(R)"
+  ```
 
 ---
 
@@ -249,55 +263,87 @@ Start-ScheduledTask -TaskName "GWCrashRelay"
 
 ## STEP 7. Nginx 설정
 
-`bravo-build` 를 서비스하는 server 블록 안에 아래 location 을 추가한다.
+설정 파일은 `C:\nginx\conf\nginx.conf` 이고, nginx는 자기 디렉터리 기준으로 동작하므로
+**`C:\nginx` 안에서 실행**해야 한다(PATH에 등록되어 있지 않다).
+
+```powershell
+cd C:\nginx
+.\nginx.exe -t
+```
+
+`server_name bravo-build.omnicraftlabs.co.kr;` 인 server 블록에서 **`location /launcher/` 다음**에 아래를 추가한다.
 
 ```nginx
-location /crash-report/ {
-    proxy_pass http://127.0.0.1:5080/;
+        # ── 크래시 로그 릴레이 (#PJTGW-3099) ─────────
+        location ^~ /crash-report/ {
+            proxy_pass http://127.0.0.1:5080/;
 
-    client_max_body_size 512m;
-    proxy_read_timeout   300s;
-    proxy_send_timeout   300s;
-    proxy_request_buffering off;
+            client_max_body_size 512m;
+            proxy_read_timeout   300s;
+            proxy_send_timeout   300s;
+            proxy_request_buffering off;
 
-    proxy_set_header Host              $host;
-    proxy_set_header X-Real-IP         $remote_addr;
-    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
 
-    # 사내망만 허용 (실제 대역에 맞게 조정)
-    # allow 10.0.0.0/8;
-    # deny  all;
-}
+            # 사내망만 허용하려면 (실제 대역에 맞게 조정)
+            # allow 10.0.0.0/8;
+            # deny  all;
+        }
 ```
 
 주의할 점
 
-- `proxy_pass` 끝의 **슬래시(`/`)를 빠뜨리면 안 된다.** 없으면 `/crash-report/upload` 가 릴레이에 `/crash-report/upload` 로 그대로 전달돼 404가 난다. 슬래시가 있어야 `/upload` 로 변환된다
-- `client_max_body_size` 가 없으면 기본 1MB라 큰 zip이 **413** 으로 잘린다
+- `proxy_pass` 끝의 **슬래시(`/`)를 빠뜨리면 안 된다.** 없으면 `/crash-report/upload` 가 릴레이에 그대로 전달돼 404가 난다. 슬래시가 있어야 `/upload` 로 변환된다
+- **`^~` 를 붙인다.** 같은 server 블록에 `location ~* \.(zip|apk|exe|msi)$` 정규식 로케이션이 있는데, nginx는 정규식 로케이션을 일반 prefix 로케이션보다 우선 적용한다. `^~` 는 정규식 검사를 건너뛰게 해 이 간섭을 원천 차단한다
+- `client_max_body_size` 는 이 server 블록이 이미 `10g` 로 크게 잡혀 있지만, 릴레이 상한(512MB)과 맞추기 위해 location 단위로 다시 지정한다
 - `proxy_request_buffering off` 가 없으면 Nginx가 zip을 통째로 받은 뒤에야 전달해, 런처 진행률이 100%에서 멈춘 것처럼 보인다
 
-적용.
+적용. 이 머신의 nginx는 **`Nginx` 라는 이름의 Windows 서비스**로 떠 있어서
+`nginx -s reload` 는 계정이 달라 실패한다(`Access is denied`). **서비스를 재시작해야 한다.**
 
 ```powershell
-nginx -t          # 문법 검사
-nginx -s reload   # 반영
+cd C:\nginx
+.\nginx.exe -t          # 문법 검사 (이건 그냥 실행하면 된다)
+
+Restart-Service Nginx   # 반영
 ```
 
 ---
 
 ## STEP 8. 종단 확인
 
-```powershell
-# 빌드 머신에서
-curl.exe http://bravo-build.omnicraftlabs.co.kr/crash-report/health
+### 8-1. 헬스체크 (빌드 머신 + 개발자 PC 양쪽)
 
-# 개발자 PC에서도 (사내망 접근 확인)
+```powershell
 curl.exe http://bravo-build.omnicraftlabs.co.kr/crash-report/health
+# {"ok":true,"service":"GWCrashRelay"}
 ```
 
-양쪽 모두 `{"ok":true,"service":"GWCrashRelay"}` 가 나오면 세팅 완료다.
-이제 런처 v30 을 배포하면 된다.
+### 8-2. 기존 경로가 깨지지 않았는지 확인
+
+```powershell
+curl.exe -I http://bravo-build.omnicraftlabs.co.kr/launcher/launcher.json
+# HTTP/1.1 200 OK
+```
+
+### 8-3. Nginx 를 통과하는 실제 업로드
+
+health 는 GET 이라 `client_max_body_size` / `proxy_request_buffering` 을 건드리지 않는다.
+POST 로 한 번 통과시켜 봐야 프록시 설정까지 검증된다.
+
+```powershell
+curl.exe -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/upload `
+  -F "file=@$env:TEMP\test.zip" `
+  -F "message=Nginx 경유 종단 테스트" `
+  -F "build=SETUP_TEST_VIA_NGINX" `
+  -F "user=$env:USERNAME" `
+  -F "machine=$env:COMPUTERNAME"
+```
+
+여기까지 성공하면 서버 세팅 완료다. 이제 런처 v30 을 배포하면 된다.
 
 ---
 
@@ -320,9 +366,13 @@ Jenkins 에서 돌리려면 런처 파이프라인 실행 시 **`DEPLOY_CRASH_RE
 | 증상 | 확인할 것 |
 |------|-----------|
 | 서비스가 바로 죽음 | `logs\stderr.log`, 포트 5080 충돌(`netstat -ano \| findstr 5080`) |
-| `/health` 는 되는데 업로드가 502 | 토큰/스코프/봇 채널 초대 — STEP 5의 error 표 참고 |
+| `address already in use` (5080) | 이미 다른 인스턴스가 떠 있다. 콘솔 테스트 창이 열려 있거나 서비스가 실행 중인 경우다. `netstat -ano \| findstr 5080` 으로 PID 확인 후 정리 |
+| `/health` 는 되는데 업로드가 502 | 토큰/스코프/봇 채널 초대 — STEP 4의 error 표 참고 |
+| 콘솔 실행 시 `UnauthorizedAccessException: appsettings.Production.json` | STEP 5의 ACL 때문. 관리자 권한 PowerShell로 실행 |
 | 업로드가 413 | Nginx `client_max_body_size` |
 | 업로드가 404 | Nginx `proxy_pass` 끝 슬래시 |
+| `nginx -s reload` 가 `OpenEvent(...) failed (5: Access is denied)` | 실행 중인 nginx 마스터가 다른 계정(서비스/SYSTEM)으로 떠 있어 리로드 신호를 못 보낸 것. **설정이 반영되지 않았다.** 서비스면 `Restart-Service <이름>`, 프로세스뿐이면 `Stop-Process -Name nginx -Force` 후 `Start-Process C:\nginx\nginx.exe -WorkingDirectory C:\nginx` |
+| 설정을 고쳤는데 `/crash-report/health` 가 301을 반환 | 리로드가 안 됐다는 뜻. 위 항목대로 재시작 |
 | 진행률이 100%에서 멈춘 뒤 한참 뒤 완료 | `proxy_request_buffering off` 누락 |
 | 429 응답 | 레이트리밋(IP당 10분 10회). 정상 동작 |
 | 설정을 바꿨는데 반영 안 됨 | 서비스 재시작 필요 (`nssm restart GWCrashRelay`) |
