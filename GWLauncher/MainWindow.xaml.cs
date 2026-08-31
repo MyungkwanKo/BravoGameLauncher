@@ -439,6 +439,11 @@ namespace BravoGameLauncherGui
                     SetGameStarterProgress(false, 100, "크래시 로그 전송 완료");
                     AppendLog("[INFO] 크래시 로그를 Slack 채널로 전송했습니다.");
 
+                    // 전송에 성공한 zip은 로컬에 남길 이유가 없다(용량 절약).
+                    // 실패·취소로 남은 zip은 수동 폴백에 필요하므로 지우지 않는다.
+                    CrashLogReporter.DeleteSentZip(zipPath);
+                    AppendLog("[INFO] 전송이 완료되어 임시 zip을 삭제했습니다.");
+
                     MessageBox.Show(
                         "크래시 로그를 Slack 채널로 전송했습니다.",
                         "전송 완료",

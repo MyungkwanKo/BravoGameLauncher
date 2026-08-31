@@ -550,6 +550,13 @@ namespace BravoGameLauncherGui
             }
         }
 
+        /// <summary>
+        /// 전송이 끝난 임시 zip을 삭제한다.
+        /// 전송에 성공한 zip은 로컬에 남길 이유가 없어 바로 지운다(용량 절약).
+        /// 실패/취소로 남은 zip은 수동 폴백에 필요하므로 지우지 않고, CleanupOldZips가 나중에 정리한다.
+        /// </summary>
+        public static void DeleteSentZip(string zipPath) => TryDelete(zipPath);
+
         /// <summary>실패해도 무시하는 파일 삭제.</summary>
         private static void TryDelete(string path)
         {

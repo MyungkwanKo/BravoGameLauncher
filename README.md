@@ -37,7 +37,8 @@
     - `slack://` 실행은 URL 핸들러만 등록돼 있으면 프로세스 시작이 성공해 **앱이 실제로 채널을 열었는지 코드로 판별할 수 없다.** 그래서 안내 창에 `채널 열기(웹)` 버튼을 둔다.
 - **로그에 URL·링크를 남기지 않는다**(보안). GameStarter 로그창에는 진행 상태와 결과만 찍고, 릴레이 서버 주소·Slack permalink·딥링크 URL은 출력하지 않는다.
 - **전송 취소**: 압축·업로드가 진행되는 동안 `크래시 로그 전송` 버튼이 **`전송 취소`로 바뀌어 활성 상태로 남는다.** 누르면 압축/업로드를 중단하며, 압축 도중이면 만들던 zip도 지운다. 업로드 타임아웃은 5분이고, 초과 시 수동 폴백 여부를 묻는다.
-- zip은 `%TEMP%\GWLauncher\CrashReports\Crash_{buildName}_{PC계정}_{yyyyMMdd_HHmmss}.zip` 에 생성하고, **7일 지난 임시 zip은 새로 만들 때 자동 정리**한다. 게임이 잡고 있는 파일은 건너뛴다.
+- zip은 `%TEMP%\GWLauncher\CrashReports\Crash_{buildName}_{PC계정}_{yyyyMMdd_HHmmss}.zip` 에 생성한다. 게임이 잡고 있는 파일은 건너뛴다.
+- **전송에 성공하면 로컬 zip을 즉시 삭제**한다(용량 절약). 전송 실패·취소로 남은 zip은 수동 폴백에 필요하므로 남겨두고, **7일이 지나면 다음 압축 시 자동 정리**한다.
 - zip 최상위에 **`CrashReport.txt`** 를 동봉해 사용자가 입력한 상황 + 빌드명/보고자/PC/OS/런처 버전/작성 시각을 남긴다.
 - **폴백 안내 창**(`CrashReportGuideWindow`): Slack이 파일만 인식하고 텍스트를 흘리는 경우를 대비해 `채널 열기(웹)` · `파일 다시 복사` · `메시지 복사` · `폴더 열기` 버튼 제공.
 - 신규 파일 — 런처: `CrashLogReporter.cs`, `CrashReportInputWindow.xaml(.cs)`, `CrashReportGuideWindow.xaml(.cs)` / 서버: `CrashRelay/` (`Program.cs`, `SlackUploader.cs`) / 배포: `publish-crash-relay.ps1`, `Jenkinsfile.groovy`의 `DEPLOY_CRASH_RELAY` 파라미터 스테이지.
