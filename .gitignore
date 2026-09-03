@@ -9,7 +9,7 @@ _publish/
 *.exe
 
 # 회사 보안 정책
-.cursorrules
+.cursor
 
 # CrashRelay 실운영 설정(Slack 봇 토큰 포함) — 절대 커밋 금지
 appsettings.Production.json
