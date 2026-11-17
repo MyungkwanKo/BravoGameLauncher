@@ -17,6 +17,8 @@ public sealed class SlackUploader
 {
     private const string GetUploadUrlEndpoint  = "https://slack.com/api/files.getUploadURLExternal";
     private const string CompleteUploadEndpoint = "https://slack.com/api/files.completeUploadExternal";
+    private const string PostMessageEndpoint    = "https://slack.com/api/chat.postMessage";
+    private const string LookupByEmailEndpoint  = "https://slack.com/api/users.lookupByEmail";
 
     private readonly HttpClient _http;
     private readonly string _botToken;
@@ -60,6 +62,64 @@ public sealed class SlackUploader
 
         // 3) 업로드 완료 처리 + 채널 공유
         return await CompleteUploadAsync(fileId, title, channelId, initialComment, ct);
+    }
+
+    /// <summary>
+    /// 이메일로 Slack 사용자 ID를 찾는다 (users.lookupByEmail, users:read.email 스코프 필요).
+    /// 못 찾거나 실패하면 null — 호출부가 평문 폴백을 쓴다.
+    /// </summary>
+    public async Task<string?> LookupUserIdByEmailAsync(string email, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get, $"{LookupByEmailEndpoint}?email={Uri.EscapeDataString(email)}");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _botToken);
+
+            using var response = await _http.SendAsync(request, ct);
+            string json = await response.Content.ReadAsStringAsync(ct);
+
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("ok", out var ok) && ok.GetBoolean()
+                && root.TryGetProperty("user", out var user)
+                && user.TryGetProperty("id", out var id))
+            {
+                return id.GetString();
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch
+        {
+            // 조회 실패는 알림 자체를 막지 않는다
+        }
+
+        return null;
+    }
+
+    /// <summary>파일 없이 텍스트 메시지만 채널에 게시한다 (chat.postMessage, chat:write 스코프 필요).</summary>
+    public async Task PostMessageAsync(string channelId, string text, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, PostMessageEndpoint);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _botToken);
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["channel"]      = channelId,
+            ["text"]         = text,
+            ["link_names"]   = "1",   // 사용자 ID 조회 실패 시 평문 @계정 폴백이 멘션으로 처리되도록
+            ["unfurl_links"] = "false",
+            ["unfurl_media"] = "false"
+        });
+
+        using var response = await _http.SendAsync(request, ct);
+        string json = await response.Content.ReadAsStringAsync(ct);
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("ok", out var okProp) || !okProp.GetBoolean())
+            throw new SlackUploadException($"chat.postMessage 실패: {ReadError(root)}");
     }
 
     private async Task<(string UploadUrl, string FileId)> GetUploadUrlAsync(string fileName, long length, CancellationToken ct)

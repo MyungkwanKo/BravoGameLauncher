@@ -51,6 +51,34 @@ GW Launcher ──(multipart POST)──> Nginx /crash-report/ ──> 127.0.0.1
 | 502 | Slack API 호출 실패 (토큰·스코프·채널 문제) |
 | 503 | 서버에 Slack 설정이 없음 |
 
+### `POST /issue` (application/json) — 클라 내부 크래시 리포트용, 파일 없이 Slack 메시지만 게시
+
+클라가 자체 크래시 리포트로 Issue-key(`BUG-숫자`)를 발급받은 뒤 호출한다. 서버는 `chat.postMessage`로 아래 3줄 메시지를 채널에 올린다.
+
+```
+[GW 버그 리포트]
+제보자 : @mk.ko
+Issue-key : BUG-2
+리포트링크 : http://pjtgw.bluehole.net:8080/BUG-2
+```
+
+```json
+{ "reporter": "mk.ko", "issueKey": "BUG-2" }
+```
+
+| 필드 | 필수 | 설명 |
+|------|------|------|
+| `reporter` | O | Windows 계정(= Slack ID). `[A-Za-z0-9._-]` 최대 64자 |
+| `issueKey` | O | `BUG-숫자` 형식만 허용 (대소문자 무관, 대문자로 정규화) |
+
+- **멘션**: `{reporter}@{Relay:ReporterEmailDomain}` 이메일로 `users.lookupByEmail`을 호출해 Slack 사용자 ID를 찾아 `<@U…>` 멘션을 건다(성공한 조회는 메모리 캐시). 조회에 실패하면 평문 `@계정`으로 폴백하며 이 경우 멘션 알림이 가지 않을 수 있다. **봇에 `users:read.email` 스코프가 필요**하다(추가 후 앱 재설치).
+- 링크는 서버가 `Relay:IssueBaseUrl + 키`로 직접 만든다(클라가 URL을 보낼 수 없음).
+- 응답/상태 코드는 `/upload`와 같다(성공 200 `{ "ok": true }`, 형식 오류 400, 레이트리밋 429 — IP당 10분에 30회, Slack 실패 502, 설정 없음 503).
+
+```
+curl -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/issue -H "Content-Type: application/json" -d "{\"reporter\":\"mk.ko\",\"issueKey\":\"BUG-2\"}"
+```
+
 ## 설정
 
 `appsettings.json`(기본값) + `appsettings.Production.json`(실운영 값) 조합. 환경변수 `Relay__SlackBotToken` 형태도 가능하다.
@@ -58,6 +86,8 @@ GW Launcher ──(multipart POST)──> Nginx /crash-report/ ──> 127.0.0.1
 | 키 | 기본값 | 설명 |
 |----|--------|------|
 | `Relay:Port` | 5080 | Kestrel 리슨 포트 (localhost 전용) |
+| `Relay:IssueBaseUrl` | `http://pjtgw.bluehole.net:8080/` | `/issue` 메시지의 이슈 링크 기준 URL |
+| `Relay:ReporterEmailDomain` | `bluehole.net` | 제보자 계정 → Slack 사용자 조회용 이메일 도메인(빈 값이면 조회 생략, 평문 멘션) |
 | `Relay:MaxUploadBytes` | 536870912 (512MB) | 업로드 상한 |
 | `Relay:SlackBotToken` | (없음) | `xoxb-` 봇 토큰 — **커밋 금지** |
 | `Relay:SlackChannelId` | (없음) | 대상 채널 ID. 클라이언트가 채널을 지정할 수 없도록 서버에 고정 |

@@ -15,6 +15,10 @@ using Microsoft.AspNetCore.RateLimiting;
 //        file(zip, 필수) / message / build / user / machine
 // 응답:  { "ok": true,  "permalink": "https://..." }
 //        { "ok": false, "error": "사유" }
+//
+// 요청:  POST /issue   (application/json)  ← 클라 내부 크래시 리포트용, 첨부파일 없이 메시지만 게시
+//        { "reporter": "mk.ko", "issueKey": "BUG-2" }   (reporter = Windows 계정 = Slack ID)
+// 응답:  { "ok": true } / { "ok": false, "error": "사유" }
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +57,17 @@ builder.Services.AddRateLimiter(options =>
             cancellationToken);
     };
 
+    // 이슈 알림은 파일이 없어 가벼우므로 IP당 10분에 30회
+    options.AddPolicy<string>("issue", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0
+            }));
+
     options.AddPolicy<string>("upload", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -75,6 +90,11 @@ forwardedOptions.KnownProxies.Add(System.Net.IPAddress.Loopback);
 app.UseForwardedHeaders(forwardedOptions);
 
 app.UseRateLimiter();
+
+// BUG-123 형식만 허용 (Jira 이슈 키). 링크는 Relay:IssueBaseUrl + 키로 서버가 직접 만든다.
+var reporterRegex = new Regex(@"^[A-Za-z0-9._-]{1,64}$", RegexOptions.Compiled);
+var userIdCache = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+var issueKeyRegex = new Regex(@"^BUG-\d{1,9}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
 app.MapGet("/health", () => Results.Ok(new { ok = true, service = "GWCrashRelay" }));
 
@@ -183,6 +203,85 @@ app.MapPost("/upload", async (
     })
     .RequireRateLimiting("upload");
 
+app.MapPost("/issue", async (
+        IssueRequest? body,
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+    {
+        var log = loggerFactory.CreateLogger("Issue");
+        var relay = configuration.GetSection("Relay");
+
+        string botToken  = relay.GetValue<string>("SlackBotToken") ?? string.Empty;
+        string channelId = relay.GetValue<string>("SlackChannelId") ?? string.Empty;
+        string baseUrl   = relay.GetValue<string>("IssueBaseUrl") ?? "http://pjtgw.bluehole.net:8080/";
+
+        if (string.IsNullOrWhiteSpace(botToken) || string.IsNullOrWhiteSpace(channelId))
+        {
+            log.LogError("SlackBotToken 또는 SlackChannelId가 설정되지 않았습니다.");
+            return Results.Json(
+                new UploadResponse(false, null, "서버에 Slack 설정이 없습니다. 관리자에게 문의하세요."),
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        if (body == null)
+            return Results.BadRequest(new UploadResponse(false, null, "JSON 본문이 없습니다."));
+
+        string issueKey = Clean(body.IssueKey, 32).ToUpperInvariant();
+        if (!issueKeyRegex.IsMatch(issueKey))
+            return Results.BadRequest(new UploadResponse(false, null, "issueKey 형식이 올바르지 않습니다. (예: BUG-2)"));
+
+        string reporter = Clean(body.Reporter, 64);
+        if (string.IsNullOrWhiteSpace(reporter))
+            return Results.BadRequest(new UploadResponse(false, null, "reporter가 비어 있습니다."));
+
+        // Windows 계정 형식만 허용 (이메일 조회·멘션 문자열에 쓰이므로 엄격히 제한)
+        if (!reporterRegex.IsMatch(reporter))
+            return Results.BadRequest(new UploadResponse(false, null, "reporter 형식이 올바르지 않습니다. (예: mk.ko)"));
+
+        try
+        {
+            var uploader = new SlackUploader(httpClientFactory.CreateClient("slack"), botToken);
+
+            // 계정 = Slack ID 이므로 이메일(계정@도메인)로 사용자 ID를 찾아 확실하게 멘션한다.
+            // 조회 실패(스코프 없음/사용자 없음) 시 평문 @계정으로 폴백한다.
+            string mention = "@" + reporter;
+            string emailDomain = relay.GetValue<string>("ReporterEmailDomain") ?? "bluehole.net";
+            if (!string.IsNullOrWhiteSpace(emailDomain))
+            {
+                string key = reporter.ToLowerInvariant();
+                if (!userIdCache.TryGetValue(key, out string? userId))
+                {
+                    userId = await uploader.LookupUserIdByEmailAsync($"{reporter}@{emailDomain}", cancellationToken);
+                    if (userId != null) userIdCache[key] = userId;   // 성공한 것만 캐시
+                }
+                if (userId != null) mention = $"<@{userId}>";
+            }
+
+            string text = BuildIssueText(baseUrl, issueKey, mention);
+            await uploader.PostMessageAsync(channelId, text, cancellationToken);
+
+            log.LogInformation("이슈 알림 성공: {Key} reporter={Reporter}", issueKey, reporter);
+            return Results.Ok(new UploadResponse(true, null, null));
+        }
+        catch (SlackUploadException ex)
+        {
+            log.LogError(ex, "Slack 게시 실패: {Key}", issueKey);
+            return Results.Json(
+                new UploadResponse(false, null, ex.Message),
+                statusCode: StatusCodes.Status502BadGateway);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "이슈 알림 처리 중 오류: {Key}", issueKey);
+            return Results.Json(
+                new UploadResponse(false, null, "서버 내부 오류로 전송하지 못했습니다."),
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+    })
+    .RequireRateLimiting("issue");
+
 app.Run();
 
 
@@ -239,6 +338,14 @@ static string BuildComment(string build, string user, string machine, string mes
     return sb.ToString();
 }
 
+/// <summary>이슈 알림 Slack 메시지. mention은 서버가 검증·생성한 값(&lt;@U…&gt; 또는 @계정)만 받는다.</summary>
+static string BuildIssueText(string baseUrl, string issueKey, string mention)
+{
+    string url = baseUrl.TrimEnd('/') + "/" + issueKey;
+
+    return $"*[GW 버그 리포트]*\n제보자 : {mention}\nIssue-key : {issueKey}\n리포트링크 : {url}";
+}
+
 /// <summary>업로드된 zip 사본을 보관하고, 보관 기간이 지난 파일은 정리한다.</summary>
 static async Task ArchiveAsync(IFormFile file, string archiveDir, string fileName, int keepDays, CancellationToken ct)
 {
@@ -271,3 +378,6 @@ static async Task ArchiveAsync(IFormFile file, string archiveDir, string fileNam
 
 /// <summary>런처가 파싱하는 응답 형태.</summary>
 internal record UploadResponse(bool Ok, string? Permalink, string? Error);
+
+/// <summary>POST /issue 요청 본문 (클라 내부 크래시 리포트가 Issue-key 발행 후 전송).</summary>
+internal record IssueRequest(string? Reporter, string? IssueKey);
