@@ -113,7 +113,21 @@ curl -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/issue -H "Conte
 powershell -ExecutionPolicy Bypass -File .\publish-crash-relay.ps1 -ServiceName GWCrashRelay
 ```
 
-기본 배포 경로는 `D:\Build\CrashRelay`이며, 스크립트는 기존 `appsettings.Production.json`을 보존한다.
+기본 배포 경로는 `D:\Build\CrashRelay`이며, 스크립트는 기존 `appsettings.Production.json`을 **읽거나 쓰지 않고 그대로 둔다**(publish 산출물에 이 파일이 없고, 토큰 보호를 위해 ACL이 읽기 전용이라 Jenkins 계정은 쓸 수 없다). 복사 단계가 실패해도 서비스는 다시 시작한 뒤 오류로 종료한다.
+
+**Jenkins `GWLauncher` job 으로 배포 (권장 — 릴레이만 수정한 경우 포함)**
+
+릴레이 전용 job 은 없고, 런처 job(`GWLauncher`, `Jenkinsfile.groovy`)의 `DEPLOY_CRASH_RELAY` 파라미터로 배포한다. 런처 코드는 바꾸지 않고 **릴레이만 수정한 경우에도 이 job 으로 배포하면 된다.**
+
+1. 릴레이 수정분을 커밋·push 한다.
+2. Jenkins `GWLauncher` job → **Build with Parameters** → **`DEPLOY_CRASH_RELAY` 체크**.
+3. 릴레이만 수정한 경우의 나머지 파라미터:
+   - `LauncherVersionInfo.Version` 은 **올리지 않는다.**
+   - `FORCE_UPDATE` 는 **해제**한다. 기본값(true)이면 `minSupportedVersion` 이 현재 버전으로 올라간다.
+   - `RELEASE_NOTES` 는 **기존 `launcher.json` 의 값과 같게** 입력한다. 비워 두면 `releaseNotes` 가 빈 값으로 덮어써진다.
+4. 빌드가 끝나면 `http://127.0.0.1:5080/health`(빌드 머신) 와 `/issue`·`/upload` 테스트 전송으로 확인한다.
+
+> 이 job 은 릴레이 배포와 별개로 **런처 zip 빌드·배포와 `launcher.json` 갱신 스테이지도 항상 같이 실행**된다. 버전을 올리지 않으면 같은 버전의 zip 이 같은 이름으로 다시 올라가고 `latestVersion` 도 그대로라 사용자에게는 업데이트가 나타나지 않는다. 다만 `releaseNotes`·`minSupportedVersion` 은 위 파라미터 값으로 갱신되므로 3번을 지킨다.
 
 **최초 설치 순서**
 

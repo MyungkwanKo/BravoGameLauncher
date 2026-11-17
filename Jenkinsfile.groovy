@@ -153,7 +153,8 @@ pipeline {
     }
 
     // 크래시 로그 릴레이(#PJTGW-3099)는 런처와 배포 주기가 다르므로 파라미터로 켤 때만 돈다.
-    // 실운영 설정(appsettings.Production.json, Slack 봇 토큰 포함)은 배포 스크립트가 보존한다.
+    // 실운영 설정(appsettings.Production.json, Slack 봇 토큰 포함)은 배포 스크립트가 건드리지 않는다(ACL 읽기 전용).
+    // 릴레이만 수정한 경우에도 이 job 으로 배포한다(런처 버전은 올리지 않고 FORCE_UPDATE 해제, RELEASE_NOTES 는 기존 값 유지).
     stage('Deploy Crash Relay') {
       when { expression { return params.DEPLOY_CRASH_RELAY } }
       steps {

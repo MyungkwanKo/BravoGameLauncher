@@ -64,20 +64,36 @@ if ($ServiceName) {
 }
 
 # 3) 복사 (실운영 설정은 보존)
+# 복사 단계에서 실패해도 서비스는 반드시 다시 올린다(릴레이가 죽은 채로 빌드가 끝나는 것을 막는다).
 Write-Host "`n[3/4] 배포 경로로 복사..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Path $DeployRoot -Force | Out-Null
+try {
+    New-Item -ItemType Directory -Path $DeployRoot -Force | Out-Null
 
-$prodConfig = Join-Path $DeployRoot 'appsettings.Production.json'
-$backup = $null
-if (Test-Path -LiteralPath $prodConfig) {
-    $backup = Get-Content -LiteralPath $prodConfig -Raw -Encoding UTF8
-    Write-Host "      기존 appsettings.Production.json 보존" -ForegroundColor DarkGray
+    # appsettings.Production.json 은 토큰이 들어 있어 ACL을 읽기 전용(Administrators/SYSTEM (R))으로 잠가 둔다.
+    # 그래서 이 스크립트를 실행하는 계정(Jenkins)은 읽을 수만 있고 쓸 수 없다.
+    # publish 산출물에는 이 파일이 없으므로 Copy-Item 은 건드리지 않는다 -> 백업/재기록은 하지 않는다.
+    $prodConfig = Join-Path $DeployRoot 'appsettings.Production.json'
+    $hadProdConfig = Test-Path -LiteralPath $prodConfig
+    if ($hadProdConfig) {
+        Write-Host "      기존 appsettings.Production.json 유지 (덮어쓰지 않음)" -ForegroundColor DarkGray
+    } else {
+        Write-Warning "배포 경로에 appsettings.Production.json 이 없습니다. Slack 토큰/채널 설정이 없으면 서비스가 503을 반환합니다."
+    }
+
+    Copy-Item -Path (Join-Path $publishDir '*') -Destination $DeployRoot -Recurse -Force
+
+    # 방어: 복사 후에도 파일이 그대로 있는지만 확인한다.
+    if ($hadProdConfig -and -not (Test-Path -LiteralPath $prodConfig)) {
+        throw "복사 후 appsettings.Production.json 이 사라졌습니다. 배포 경로를 확인하세요: $prodConfig"
+    }
 }
-
-Copy-Item -Path (Join-Path $publishDir '*') -Destination $DeployRoot -Recurse -Force
-
-if ($null -ne $backup) {
-    Set-Content -LiteralPath $prodConfig -Value $backup -Encoding UTF8 -NoNewline
+catch {
+    Write-Host "`n[ERROR] 복사 단계 실패: $($_.Exception.Message)" -ForegroundColor Red
+    if ($ServiceName -and (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
+        Write-Host "      서비스를 다시 시작합니다: $ServiceName" -ForegroundColor Yellow
+        try { Start-Service -Name $ServiceName } catch { Write-Warning "서비스 재시작 실패: $($_.Exception.Message)" }
+    }
+    throw
 }
 
 # 4) 서비스 시작

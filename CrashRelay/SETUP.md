@@ -383,7 +383,7 @@ curl.exe http://127.0.0.1:5080/health
 
 ## 이후 업데이트 배포
 
-릴레이 코드가 바뀌었을 때만 하면 된다. `appsettings.Production.json` 은 스크립트가 보존한다.
+릴레이 코드가 바뀌었을 때만 하면 된다. `appsettings.Production.json` 은 스크립트가 **건드리지 않는다**(읽지도 쓰지도 않음. 배포 경로에 없으면 경고만 출력).
 
 ```powershell
 cd D:\bravogamelauncher
@@ -391,7 +391,22 @@ git pull
 powershell -ExecutionPolicy Bypass -File .\publish-crash-relay.ps1 -ServiceName GWCrashRelay
 ```
 
-Jenkins 에서 돌리려면 런처 파이프라인 실행 시 **`DEPLOY_CRASH_RELAY` 파라미터를 체크**한다.
+### Jenkins `GWLauncher` job 으로 배포 (릴레이만 수정한 경우 포함)
+
+릴레이 전용 job 은 없다. 런처 job(`GWLauncher`, `Jenkinsfile.groovy`)을 **Build with Parameters** 로 실행하고 **`DEPLOY_CRASH_RELAY` 를 체크**하면 된다. 런처 코드는 그대로이고 **릴레이만 수정한 경우에도 이 job 으로 배포한다.**
+
+| 파라미터 | 릴레이만 수정한 경우 |
+|----------|----------------------|
+| `DEPLOY_CRASH_RELAY` | **체크** |
+| `FORCE_UPDATE` | **해제** (기본 true 이면 `minSupportedVersion` 이 현재 버전으로 올라감) |
+| `RELEASE_NOTES` | 기존 `launcher.json` 의 값과 동일하게 입력 (비우면 `releaseNotes` 가 빈 값으로 덮어써짐) |
+| `LauncherVersionInfo.Version` | 올리지 않는다 |
+
+이 job 은 릴레이 배포와 별개로 런처 zip 빌드·배포와 `launcher.json` 갱신도 항상 같이 실행한다. 버전을 올리지 않으면 같은 버전의 zip 이 다시 올라가고 `latestVersion` 도 그대로라 사용자에게는 업데이트가 나타나지 않는다.
+
+배포 후에는 `curl.exe http://127.0.0.1:5080/health` 와 `/issue`·`/upload` 테스트 전송으로 확인한다.
+
+> Jenkins 계정은 STEP 5 의 ACL(`(R)` 읽기 전용) 때문에 `appsettings.Production.json` 을 **수정할 수 없다.** 설정 변경은 관리자 계정으로 직접 하고(`서비스 재시작` 필요), 배포 스크립트는 이 파일을 건드리지 않는다. 복사 단계가 실패하면 스크립트가 서비스를 다시 시작한 뒤 오류로 종료하므로 릴레이가 중지된 채 남지 않는다.
 
 ---
 
@@ -403,6 +418,7 @@ Jenkins 에서 돌리려면 런처 파이프라인 실행 시 **`DEPLOY_CRASH_RE
 | `address already in use` (5080) | 이미 다른 인스턴스가 떠 있다. 콘솔 테스트 창이 열려 있거나 서비스가 실행 중인 경우다. `netstat -ano \| findstr 5080` 으로 PID 확인 후 정리 |
 | `/health` 는 되는데 업로드가 502 | 토큰/스코프/봇 채널 초대 — STEP 4의 error 표 참고 |
 | 콘솔 실행 시 `UnauthorizedAccessException: appsettings.Production.json` | STEP 5의 ACL 때문. 관리자 권한 PowerShell로 실행 |
+| Jenkins 배포 중 `Set-Content ... appsettings.Production.json is denied` (v31 이전 스크립트) | 스크립트가 ACL로 잠긴 설정 파일을 다시 쓰려던 문제. 최신 `publish-crash-relay.ps1` 로 수정됨(파일을 건드리지 않음). 실패 시 서비스가 중지된 채 남았을 수 있으니 `Start-Service GWCrashRelay` 로 복구 |
 | 업로드가 413 | Nginx `client_max_body_size` |
 | 업로드가 404 | Nginx `proxy_pass` 끝 슬래시 |
 | `nginx -s reload` 가 `OpenEvent(...) failed (5: Access is denied)` | 실행 중인 nginx 마스터가 다른 계정(서비스/SYSTEM)으로 떠 있어 리로드 신호를 못 보낸 것. **설정이 반영되지 않았다.** 서비스면 `Restart-Service <이름>`, 프로세스뿐이면 `Stop-Process -Name nginx -Force` 후 `Start-Process C:\nginx\nginx.exe -WorkingDirectory C:\nginx` |
