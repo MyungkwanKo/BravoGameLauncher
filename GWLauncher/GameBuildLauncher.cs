@@ -453,7 +453,8 @@ namespace BravoGameLauncherGui
                 return;
             }
 
-            string dsArgs = !string.IsNullOrWhiteSpace(dsArgsOverride) ? dsArgsOverride.Trim() : DefaultDedicatedServerArgs;
+            // v31: 호출측이 넘긴 값은 빈 문자열이어도 그대로 사용 (null 일 때만 기본값)
+            string dsArgs = dsArgsOverride != null ? dsArgsOverride.Trim() : DefaultDedicatedServerArgs;
             _log($"[INFO] DS 실행: {dsExePath} {dsArgs}");
 
             Process.Start(new ProcessStartInfo

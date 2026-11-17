@@ -382,37 +382,14 @@
                         <TextBlock x:Name="TxtGameStarterProgress" VerticalAlignment="Center" MinWidth="280" TextWrapping="Wrap"/>
                     </StackPanel>
 
-                    <!-- 클라이언트 실행 옵션 (GW.exe 인자): Grid로 남은 폭만 사용, 긴 줄은 입력란 내 가로 스크롤 -->
-                    <Grid Grid.Row="2" Margin="10,0,10,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" MinWidth="120"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="클라이언트 실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="1" x:Name="TbGameStarterArgs" Height="24" VerticalContentAlignment="Center"
-                                 MinWidth="0"
-                                 HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"/>
-                        <Button Grid.Column="2" x:Name="BtnGameStarterArgsReset" Content="Reset" Width="60" Height="24" Margin="8,0,0,0"
+                    <!-- 실행 옵션 (클라/DS 통합): 팝업에서 입력, Reset은 둘 다 기본값으로 복원 -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10,0,10,4">
+                        <TextBlock Text="실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <Button x:Name="BtnGameStarterArgsEdit" Content="실행 옵션 설정" Width="120" Height="24"
+                                Click="BtnGameStarterArgsEdit_Click"/>
+                        <Button x:Name="BtnGameStarterArgsReset" Content="Reset" Width="60" Height="24" Margin="8,0,0,0"
                                 Click="BtnGameStarterArgsReset_Click"/>
-                    </Grid>
-
-                    <!-- DS 실행 옵션 (GWServer.exe 인자): 1줄 높이 -->
-                    <Grid Grid.Row="3" Margin="10,0,10,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" MinWidth="120"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="DS 실행 옵션:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="1" x:Name="TbGameStarterDsArgs" MinHeight="28" Height="28" MinWidth="0"
-                                 VerticalContentAlignment="Center"
-                                 Text="-port=7778 -MapBaseId=10111 -log -LogCmds=&quot;LogGW Verbose&quot;"
-                                 TextWrapping="NoWrap" AcceptsReturn="False"
-                                 VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Auto"/>
-                        <Button Grid.Column="2" x:Name="BtnGameStarterDsArgsReset" Content="Reset" Width="60" Height="24" Margin="8,0,0,0"
-                                VerticalAlignment="Center" Click="BtnGameStarterDsArgsReset_Click"/>
-                    </Grid>
+                    </StackPanel>
 
                     <!-- 캐시 경로 -->
                     <StackPanel Orientation="Horizontal" Grid.Row="4" Margin="10,0,10,4">

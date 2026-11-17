@@ -914,6 +914,7 @@ Run_GWLauncher는 이 파일을 기준으로 업데이트 수행.
 
 | 버전 | 날짜 | 변경 요약 |
 |------|------|-----------|
+| v31 | 2026-11-17 | GameStarter: 클라이언트/DS 실행 옵션 입력을 **팝업(`LaunchArgsWindow`)** 방식으로 변경 — 메인 화면의 옵션 텍스트 박스 제거, `실행 옵션 설정`·`Reset` 버튼으로 통합(Reset은 클라=빈 값, DS=기본값 복원). 팝업은 멀티라인 3줄 표시·자동 줄바꿈, 확인=저장/닫기=미저장, 입력값 가공 없이 그대로 사용(빈 값 허용, DS 빈 값이면 인자 없이 실행) |
 | v30 | 2026-08-28 | GameStarter: **크래시 로그 Slack 자동 전송** 버튼 추가 (#PJTGW-3099) — 선택 빌드의 `unpacked\GW\Saved\Crashes` 를 zip 압축 후 사내 릴레이(`CrashRelay`, 빌드 머신)로 업로드하면 릴레이가 Slack 채널에 파일+메시지 게시(봇 토큰은 서버에만 존재). 크래시 상황 입력 창(최대 100자, 미입력 시 확인 비활성, 취소 시 압축 안 함), 폴더 없음/용량 초과 가드, `CrashReport.txt` 동봉, 임시 zip 7일 자동 정리, 릴레이 실패 시 클립보드+딥링크 수동 폴백; `GameBuildLauncher.GetBuildDir`/`GetClientUnpackDir` public 헬퍼로 경로 규칙 공유 |
 | v29 | 2026-07-30 | 협업부서용 Coop 런처(`Coop/CoopLauncher`, `publish-coop-launcher.ps1`) 삭제 — 현재 미사용, 필요 시 향후 별도 런처로 재제작 예정 |
 | v28 | 2026-07-30 | GW Sync: GWEditor 상태 메세지 "배포된 프로젝트 빌드가 있습니다" → "배포된 프로젝트 바이너리가 있습니다"; GameStarter: 클라이언트 실행 옵션 기본값 비움, DS 실행 옵션 기본값을 `-port=7778 -MapBaseId=10111 -log -LogCmds="LogGW Verbose"`로 변경, DS 입력칸 1줄 높이로 축소 |

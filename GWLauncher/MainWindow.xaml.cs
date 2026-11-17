@@ -69,7 +69,8 @@ namespace BravoGameLauncherGui
             TbP4Workspace.Text = "";
 
             TxtCachePath.Text = _launcher.RootDownloadDir;
-            TbGameStarterArgs.Text = GameBuildLauncher.DefaultClientLaunchArgs;
+            _gsClientArgs = GameBuildLauncher.DefaultClientLaunchArgs;
+            _gsDsArgs = GameBuildLauncher.DefaultDedicatedServerArgs;
             AppendLog("=== GW Launcher (GUI) ===");
             AppendLog($"캐시 루트 경로: {_launcher.RootDownloadDir}");
             AppendLog(string.Empty);
@@ -159,13 +160,11 @@ namespace BravoGameLauncherGui
             if (CbRunClient != null) CbRunClient.IsEnabled = en;
             if (CbRunDS != null) CbRunDS.IsEnabled = en;
             if (BtnGameStarterArgsReset != null) BtnGameStarterArgsReset.IsEnabled = en;
-            if (BtnGameStarterDsArgsReset != null) BtnGameStarterDsArgsReset.IsEnabled = en;
+            if (BtnGameStarterArgsEdit != null) BtnGameStarterArgsEdit.IsEnabled = en;
             if (BtnChangeCachePath != null) BtnChangeCachePath.IsEnabled = en;
             if (BtnClearCache != null) BtnClearCache.IsEnabled = en;
             if (BtnOpenCachePath != null) BtnOpenCachePath.IsEnabled = en;
             if (BtnSendCrashLog != null) BtnSendCrashLog.IsEnabled = en;
-            if (TbGameStarterArgs != null) TbGameStarterArgs.IsEnabled = en;
-            if (TbGameStarterDsArgs != null) TbGameStarterDsArgs.IsEnabled = en;
             if (LvBuilds != null) LvBuilds.IsEnabled = en;
 
             if (TabItemGWEditor != null) TabItemGWEditor.IsEnabled = en;
@@ -1319,27 +1318,33 @@ namespace BravoGameLauncherGui
 
         private const string DefaultGWEditorArgs = "-nocompile";
 
-        /// <summary>DS 실행 옵션 멀티라인에서 줄바꿈만 공백으로 합칩니다(프로세스 인자는 한 줄).</summary>
-        private static string NormalizeMultilineLauncherArgs(string? text)
-        {
-            if (string.IsNullOrEmpty(text)) return "";
-            var t = text.Trim();
-            return t.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
-        }
+        /// <summary>GameStarter 클라이언트(GW.exe) 실행 옵션 (팝업에서 확인 시 저장, 입력값 그대로 사용).</summary>
+        private string _gsClientArgs = GameBuildLauncher.DefaultClientLaunchArgs;
+
+        /// <summary>GameStarter DS(GWServer.exe) 실행 옵션 (팝업에서 확인 시 저장, 입력값 그대로 사용).</summary>
+        private string _gsDsArgs = GameBuildLauncher.DefaultDedicatedServerArgs;
 
         private void BtnGWEditorArgsReset_Click(object sender, RoutedEventArgs e)
         {
             TbGWEditorArgs.Text = DefaultGWEditorArgs;
         }
 
-        private void BtnGameStarterArgsReset_Click(object sender, RoutedEventArgs e)
+        private void BtnGameStarterArgsEdit_Click(object sender, RoutedEventArgs e)
         {
-            TbGameStarterArgs.Text = GameBuildLauncher.DefaultClientLaunchArgs;
+            var dlg = new LaunchArgsWindow(_gsClientArgs, _gsDsArgs) { Owner = this };
+            if (dlg.ShowDialog() == true)
+            {
+                _gsClientArgs = dlg.ClientArgs;
+                _gsDsArgs = dlg.DsArgs;
+            }
         }
 
-        private void BtnGameStarterDsArgsReset_Click(object sender, RoutedEventArgs e)
+        private void BtnGameStarterArgsReset_Click(object sender, RoutedEventArgs e)
         {
-            TbGameStarterDsArgs.Text = GameBuildLauncher.DefaultDedicatedServerArgs;
+            _gsClientArgs = GameBuildLauncher.DefaultClientLaunchArgs;
+            _gsDsArgs = GameBuildLauncher.DefaultDedicatedServerArgs;
+            MessageBox.Show(this, "실행 옵션이 기본 설정으로 재적용 됩니다.", "실행 옵션 Reset",
+                MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>
@@ -2135,10 +2140,9 @@ namespace BravoGameLauncherGui
                 string dsZip = !string.IsNullOrWhiteSpace(selected.DsFileName)
                     ? selected.DsFileName
                     : Path.GetFileNameWithoutExtension(winZip) + "_DS.zip";
-                string clientArgs = (TbGameStarterArgs?.Text ?? "").Trim();
-
-                string dsArgs = NormalizeMultilineLauncherArgs(TbGameStarterDsArgs?.Text);
-                if (string.IsNullOrWhiteSpace(dsArgs)) dsArgs = GameBuildLauncher.DefaultDedicatedServerArgs;
+                // 실행 옵션은 팝업에서 입력한 값을 가공 없이 그대로 사용 (빈 값 허용)
+                string clientArgs = _gsClientArgs;
+                string dsArgs = _gsDsArgs;
 
                 if (runClient && runDS)
                 {
