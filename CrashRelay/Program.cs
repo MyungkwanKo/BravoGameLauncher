@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.RateLimiting;
 //        { "ok": false, "error": "사유" }
 //
 // 요청:  POST /issue   (application/json)  ← 클라 내부 크래시 리포트용, 첨부파일 없이 메시지만 게시
-//        { "reporter": "mk.ko", "issueKey": "BUG-2" }   (reporter = Windows 계정 = Slack ID)
+//        { "reporter": "mk.ko", "issueKey": "BUG-2" }  (issueKey: BUG-숫자 | CRASH-숫자)   (reporter = Windows 계정 = Slack ID)
 // 응답:  { "ok": true } / { "ok": false, "error": "사유" }
 
 var builder = WebApplication.CreateBuilder(args);
@@ -91,10 +91,10 @@ app.UseForwardedHeaders(forwardedOptions);
 
 app.UseRateLimiter();
 
-// BUG-123 형식만 허용 (Jira 이슈 키). 링크는 Relay:IssueBaseUrl + 키로 서버가 직접 만든다.
+// BUG-123(버그 리포트) / CRASH-123(크래시 리포트) 형식만 허용. 링크는 Relay:IssueBaseUrl + 키로 서버가 직접 만든다.
 var reporterRegex = new Regex(@"^[A-Za-z0-9._-]{1,64}$", RegexOptions.Compiled);
 var userIdCache = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
-var issueKeyRegex = new Regex(@"^BUG-\d{1,9}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+var issueKeyRegex = new Regex(@"^(BUG|CRASH)-\d{1,9}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
 app.MapGet("/health", () => Results.Ok(new { ok = true, service = "GWCrashRelay" }));
 
@@ -230,7 +230,7 @@ app.MapPost("/issue", async (
 
         string issueKey = Clean(body.IssueKey, 32).ToUpperInvariant();
         if (!issueKeyRegex.IsMatch(issueKey))
-            return Results.BadRequest(new UploadResponse(false, null, "issueKey 형식이 올바르지 않습니다. (예: BUG-2)"));
+            return Results.BadRequest(new UploadResponse(false, null, "issueKey 형식이 올바르지 않습니다. (예: BUG-2, CRASH-12)"));
 
         string reporter = Clean(body.Reporter, 64);
         if (string.IsNullOrWhiteSpace(reporter))
