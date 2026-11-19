@@ -10,6 +10,7 @@ pipeline {
   parameters {
     string(name: 'RELEASE_NOTES', defaultValue: '', description: '릴리즈 노트(launcher.json releaseNotes에 반영)')
     booleanParam(name: 'FORCE_UPDATE', defaultValue: true, description: '강제 업데이트 여부(true면 minSupportedVersion=latestVersion)')
+    string(name: 'REPORTER_ALIASES', defaultValue: '', description: '[릴레이 배포 시] 제보자 계정 별칭 보정. 요청계정:실제계정 쌍을 쉼표/공백으로 구분 (예: skim:s.kim, mkko:mk.ko). 비우면 기존 목록 유지, 입력하면 누적 추가, "skim:" 처럼 값을 비우면 삭제')
     booleanParam(name: 'DEPLOY_CRASH_RELAY', defaultValue: false, description: '크래시 로그 릴레이(GWCrashRelay) 서비스도 함께 배포할지 여부. 릴레이 코드가 바뀐 경우에만 체크')
   }
 
@@ -164,7 +165,7 @@ pipeline {
           if (-not (Test-Path -LiteralPath $script)) {
             throw "publish-crash-relay.ps1 not found: $script"
           }
-          & $script -DeployRoot "D:\\Build\\CrashRelay" -ServiceName "GWCrashRelay"
+          & $script -DeployRoot "D:\\Build\\CrashRelay" -ServiceName "GWCrashRelay" -ReporterAliases "$env:REPORTER_ALIASES"
         '''
       }
     }

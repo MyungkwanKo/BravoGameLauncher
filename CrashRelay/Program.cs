@@ -22,6 +22,12 @@ using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 일부 PC에서 계정의 '.'이 빠져(skim) 오는 경우를 보정하는 별칭 테이블.
+// Jenkins 배포 시 REPORTER_ALIASES 파라미터로 publish-crash-relay.ps1 이 이 파일을 갱신한다.
+// 토큰이 든 appsettings.Production.json 은 ACL로 잠겨 있어 Jenkins가 쓸 수 없으므로 별도 파일로 둔다.
+// 형식: { "ReporterAliases": { "skim": "s.kim", "mkko": "mk.ko" } }  (키는 대소문자 무시)
+builder.Configuration.AddJsonFile("reporter-aliases.json", optional: true, reloadOnChange: true);
+
 var relayConfig = builder.Configuration.GetSection("Relay");
 
 int  port           = relayConfig.GetValue<int?>("Port") ?? 5080;
@@ -239,6 +245,14 @@ app.MapPost("/issue", async (
         // Windows 계정 형식만 허용 (이메일 조회·멘션 문자열에 쓰이므로 엄격히 제한)
         if (!reporterRegex.IsMatch(reporter))
             return Results.BadRequest(new UploadResponse(false, null, "reporter 형식이 올바르지 않습니다. (예: mk.ko)"));
+
+        // 별칭 보정: 요청 계정이 별칭 테이블에 있으면 실제 계정으로 바꿔서 처리한다 (예: skim -> s.kim).
+        string? mappedReporter = configuration.GetSection("ReporterAliases")[reporter];
+        if (!string.IsNullOrWhiteSpace(mappedReporter) && reporterRegex.IsMatch(mappedReporter))
+        {
+            log.LogInformation("reporter 별칭 적용: {From} -> {To}", reporter, mappedReporter);
+            reporter = mappedReporter;
+        }
 
         try
         {

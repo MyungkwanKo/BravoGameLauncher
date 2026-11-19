@@ -12,6 +12,13 @@
 .PARAMETER ServiceName
     NSSM 등으로 등록해 둔 Windows 서비스 이름. 지정하면 배포 전후로 중지/시작한다.
 
+.PARAMETER ReporterAliases
+    제보자 계정 별칭 보정 목록. "요청계정:실제계정" 쌍을 쉼표/공백/줄바꿈으로 구분해 여러 개 입력한다.
+    예) "skim:s.kim, mkko:mk.ko"  (일부 PC에서 계정의 '.'이 빠져 오는 경우 보정용)
+    - 비워 두면 기존 reporter-aliases.json 을 그대로 유지한다.
+    - 입력하면 기존 목록에 추가/덮어쓴다(누적). "skim:" 처럼 값을 비우면 해당 별칭을 삭제한다.
+    - 결과는 <DeployRoot>\reporter-aliases.json 에 저장되며 릴레이가 읽는다.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\publish-crash-relay.ps1
     powershell -ExecutionPolicy Bypass -File .\publish-crash-relay.ps1 -ServiceName GWCrashRelay
@@ -20,7 +27,8 @@
 [CmdletBinding()]
 param(
     [string] $DeployRoot  = 'D:\Build\CrashRelay',
-    [string] $ServiceName = ''
+    [string] $ServiceName = '',
+    [string] $ReporterAliases = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,6 +39,21 @@ $publishDir = Join-Path $projectDir '_publish'
 
 if (-not (Test-Path -LiteralPath $projectDir)) {
     throw "CrashRelay 프로젝트를 찾을 수 없습니다: $projectDir"
+}
+
+# 별칭 입력은 서비스를 건드리기 전에 먼저 검증한다(오타 때문에 배포가 중간에 끊기지 않도록).
+# 계정 문자 규칙은 릴레이의 reporter 검증(^[A-Za-z0-9._-]{1,64}$)과 같다.
+$aliasUpdates = [ordered]@{}
+if (-not [string]::IsNullOrWhiteSpace($ReporterAliases)) {
+    foreach ($pair in ($ReporterAliases -split '[,;\s]+' | Where-Object { $_ })) {
+        $idx = $pair.IndexOf(':')
+        if ($idx -lt 1) { throw "REPORTER_ALIASES 형식 오류: '$pair' (예: skim:s.kim)" }
+        $from = $pair.Substring(0, $idx).Trim().ToLowerInvariant()
+        $to   = $pair.Substring($idx + 1).Trim()
+        if ($from -notmatch '^[A-Za-z0-9._-]{1,64}$') { throw "REPORTER_ALIASES 요청 계정 형식 오류: '$from'" }
+        if ($to -ne '' -and $to -notmatch '^[A-Za-z0-9._-]{1,64}$') { throw "REPORTER_ALIASES 실제 계정 형식 오류: '$to'" }
+        $aliasUpdates[$from] = $to
+    }
 }
 
 Write-Host "== GW Crash Relay 배포 ==" -ForegroundColor Cyan
@@ -81,6 +104,27 @@ try {
     }
 
     Copy-Item -Path (Join-Path $publishDir '*') -Destination $DeployRoot -Recurse -Force
+
+    # 계정 별칭(reporter-aliases.json) 갱신: 입력이 있을 때만, 기존 목록에 누적 반영한다.
+    # 이 파일은 publish 산출물에 없으므로 배포로 지워지지 않고, ACL 잠금 대상(Production.json)도 아니다.
+    if ($aliasUpdates.Count -gt 0) {
+        $aliasFile = Join-Path $DeployRoot 'reporter-aliases.json'
+        $merged = [ordered]@{}
+        if (Test-Path -LiteralPath $aliasFile) {
+            $existing = Get-Content -LiteralPath $aliasFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($existing.ReporterAliases) {
+                foreach ($p in $existing.ReporterAliases.PSObject.Properties) { $merged[$p.Name.ToLowerInvariant()] = [string]$p.Value }
+            }
+        }
+        foreach ($k in $aliasUpdates.Keys) {
+            if ($aliasUpdates[$k] -eq '') { $merged.Remove($k) } else { $merged[$k] = $aliasUpdates[$k] }
+        }
+        $tmp = "$aliasFile.tmp"
+        (@{ ReporterAliases = $merged } | ConvertTo-Json -Depth 5) | Set-Content -LiteralPath $tmp -Encoding UTF8
+        Move-Item -LiteralPath $tmp -Destination $aliasFile -Force
+        Write-Host "      reporter-aliases.json 갱신 ($($merged.Count)건)" -ForegroundColor DarkGray
+        foreach ($k in $merged.Keys) { Write-Host "        $k -> $($merged[$k])" -ForegroundColor DarkGray }
+    }
 
     # 방어: 복사 후에도 파일이 그대로 있는지만 확인한다.
     if ($hadProdConfig -and -not (Test-Path -LiteralPath $prodConfig)) {

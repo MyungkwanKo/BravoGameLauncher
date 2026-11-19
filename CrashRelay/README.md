@@ -72,6 +72,12 @@ Issue-key : BUG-2
 | `issueKey` | O | `BUG-숫자`(버그 리포트) 또는 `CRASH-숫자`(크래시 리포트) 형식만 허용 (대소문자 무관, 대문자로 정규화). 두 유형 모두 메시지 형식은 동일하고 링크만 키에 따라 `Relay:IssueBaseUrl + 키`(예: `.../CRASH-12`)로 달라진다 |
 
 - **멘션**: `{reporter}@{Relay:ReporterEmailDomain}` 이메일로 `users.lookupByEmail`을 호출해 Slack 사용자 ID를 찾아 `<@U…>` 멘션을 건다(성공한 조회는 메모리 캐시). 조회에 실패하면 평문 `@계정`으로 폴백하며 이 경우 멘션 알림이 가지 않을 수 있다. **봇에 `users:read.email` 스코프가 필요**하다(추가 후 앱 재설치).
+- **계정 별칭 보정**: 일부 PC에서 Windows 계정의 `.`이 빠져(`s.kim` → `skim`) 전송되는 경우를 위해, 서버는 `reporter-aliases.json`의 `ReporterAliases` 테이블에서 요청 계정(대소문자 무시)을 찾아 실제 계정으로 바꿔 처리한다. 테이블에 없으면 요청 값을 그대로 쓴다. 변환은 형식 검증을 통과한 뒤 적용되고, 변환 결과도 같은 정규식으로 다시 검증한다.
+  ```json
+  { "ReporterAliases": { "skim": "s.kim", "mkko": "mk.ko" } }
+  ```
+  - 파일 위치: `D:\Build\CrashRelay\reporter-aliases.json` (없어도 됨, 수정 시 자동 재로드). 토큰이 든 `appsettings.Production.json`(읽기 전용 ACL)과 별개 파일이라 Jenkins가 갱신할 수 있다.
+  - **Jenkins `GWLauncher` job 의 `REPORTER_ALIASES` 파라미터**(`DEPLOY_CRASH_RELAY` 체크 시 적용)로 추가한다. 형식 `요청계정:실제계정`을 쉼표/공백/줄바꿈으로 여러 개 입력 (예: `skim:s.kim, mkko:mk.ko`). 비우면 기존 목록 유지, 입력하면 기존 목록에 **누적 추가/덮어쓰기**, `skim:`처럼 값을 비우면 해당 별칭 **삭제**. 형식 오류는 서비스를 중지하기 전에 빌드를 실패시킨다.
 - 링크는 서버가 `Relay:IssueBaseUrl + 키`로 직접 만든다(클라가 URL을 보낼 수 없음).
 - 응답/상태 코드는 `/upload`와 같다(성공 200 `{ "ok": true }`, 형식 오류 400, 레이트리밋 429 — IP당 10분에 30회, Slack 실패 502, 설정 없음 503).
 

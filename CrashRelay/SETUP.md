@@ -401,6 +401,7 @@ powershell -ExecutionPolicy Bypass -File .\publish-crash-relay.ps1 -ServiceName 
 | `FORCE_UPDATE` | **해제** (기본 true 이면 `minSupportedVersion` 이 현재 버전으로 올라감) |
 | `RELEASE_NOTES` | 기존 `launcher.json` 의 값과 동일하게 입력 (비우면 `releaseNotes` 가 빈 값으로 덮어써짐) |
 | `LauncherVersionInfo.Version` | 올리지 않는다 |
+| `REPORTER_ALIASES` | 비워 두면 기존 별칭 유지. 계정 `.` 누락 보정이 필요하면 `skim:s.kim, mkko:mk.ko` 처럼 입력(누적 추가, `skim:` 으로 삭제). 결과는 `D:\Build\CrashRelay\reporter-aliases.json` |
 
 이 job 은 릴레이 배포와 별개로 런처 zip 빌드·배포와 `launcher.json` 갱신도 항상 같이 실행한다. 버전을 올리지 않으면 같은 버전의 zip 이 다시 올라가고 `latestVersion` 도 그대로라 사용자에게는 업데이트가 나타나지 않는다.
 
