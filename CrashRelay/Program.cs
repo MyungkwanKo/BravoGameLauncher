@@ -99,6 +99,7 @@ app.UseRateLimiter();
 
 // BUG-123(버그 리포트) / CRASH-123(크래시 리포트) 형식만 허용. 링크는 Relay:IssueBaseUrl + 키로 서버가 직접 만든다.
 var reporterRegex = new Regex(@"^[A-Za-z0-9._-]{1,64}$", RegexOptions.Compiled);
+var messageTsRegex = new Regex(@"^\d{10}\.\d{6}$", RegexOptions.Compiled);
 var userIdCache = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
 var issueKeyRegex = new Regex(@"^(BUG|CRASH)-\d{1,9}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -227,70 +228,126 @@ app.MapPost("/issue", async (
         {
             log.LogError("SlackBotToken 또는 SlackChannelId가 설정되지 않았습니다.");
             return Results.Json(
-                new UploadResponse(false, null, "서버에 Slack 설정이 없습니다. 관리자에게 문의하세요."),
+                new IssueResponse(false, null, "서버에 Slack 설정이 없습니다. 관리자에게 문의하세요.", null),
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
         if (body == null)
-            return Results.BadRequest(new UploadResponse(false, null, "JSON 본문이 없습니다."));
+            return Results.BadRequest(new IssueResponse(false, null, "JSON 본문이 없습니다.", null));
 
         string issueKey = Clean(body.IssueKey, 32).ToUpperInvariant();
         if (!issueKeyRegex.IsMatch(issueKey))
-            return Results.BadRequest(new UploadResponse(false, null, "issueKey 형식이 올바르지 않습니다. (예: BUG-2, CRASH-12)"));
+            return Results.BadRequest(new IssueResponse(false, null, "issueKey 형식이 올바르지 않습니다. (예: BUG-2, CRASH-12)", null));
 
         string reporter = Clean(body.Reporter, 64);
         if (string.IsNullOrWhiteSpace(reporter))
-            return Results.BadRequest(new UploadResponse(false, null, "reporter가 비어 있습니다."));
+            return Results.BadRequest(new IssueResponse(false, null, "reporter가 비어 있습니다.", null));
 
         // Windows 계정 형식만 허용 (이메일 조회·멘션 문자열에 쓰이므로 엄격히 제한)
         if (!reporterRegex.IsMatch(reporter))
-            return Results.BadRequest(new UploadResponse(false, null, "reporter 형식이 올바르지 않습니다. (예: mk.ko)"));
+            return Results.BadRequest(new IssueResponse(false, null, "reporter 형식이 올바르지 않습니다. (예: mk.ko)", null));
 
-        // 별칭 보정: 요청 계정이 별칭 테이블에 있으면 실제 계정으로 바꿔서 처리한다 (예: skim -> s.kim).
-        string? mappedReporter = configuration.GetSection("ReporterAliases")[reporter];
-        if (!string.IsNullOrWhiteSpace(mappedReporter) && reporterRegex.IsMatch(mappedReporter))
-        {
-            log.LogInformation("reporter 별칭 적용: {From} -> {To}", reporter, mappedReporter);
-            reporter = mappedReporter;
-        }
+        reporter = ApplyAlias(configuration, reporterRegex, reporter, log);
 
         try
         {
             var uploader = new SlackUploader(httpClientFactory.CreateClient("slack"), botToken);
-
-            // 계정 = Slack ID 이므로 이메일(계정@도메인)로 사용자 ID를 찾아 확실하게 멘션한다.
-            // 조회 실패(스코프 없음/사용자 없음) 시 평문 @계정으로 폴백한다.
-            string mention = "@" + reporter;
-            string emailDomain = relay.GetValue<string>("ReporterEmailDomain") ?? "bluehole.net";
-            if (!string.IsNullOrWhiteSpace(emailDomain))
-            {
-                string key = reporter.ToLowerInvariant();
-                if (!userIdCache.TryGetValue(key, out string? userId))
-                {
-                    userId = await uploader.LookupUserIdByEmailAsync($"{reporter}@{emailDomain}", cancellationToken);
-                    if (userId != null) userIdCache[key] = userId;   // 성공한 것만 캐시
-                }
-                if (userId != null) mention = $"<@{userId}>";
-            }
+            string mention = await ResolveMentionAsync(uploader, relay, userIdCache, reporter, cancellationToken);
 
             string text = BuildIssueText(baseUrl, issueKey, mention);
-            await uploader.PostMessageAsync(channelId, text, cancellationToken);
+            string? messageTs = await uploader.PostMessageAsync(channelId, text, cancellationToken);
 
-            log.LogInformation("이슈 알림 성공: {Key} reporter={Reporter}", issueKey, reporter);
-            return Results.Ok(new UploadResponse(true, null, null));
+            log.LogInformation("이슈 알림 성공: {Key} reporter={Reporter} ts={Ts}", issueKey, reporter, messageTs);
+
+            // messageTs 는 원문 스레드 키다. 크래시 리포트 서버가 보관했다가 /issue/update 호출 시 돌려준다.
+            return Results.Ok(new IssueResponse(true, null, null, messageTs));
         }
         catch (SlackUploadException ex)
         {
             log.LogError(ex, "Slack 게시 실패: {Key}", issueKey);
             return Results.Json(
-                new UploadResponse(false, null, ex.Message),
+                new IssueResponse(false, null, ex.Message, null),
                 statusCode: StatusCodes.Status502BadGateway);
         }
         catch (Exception ex)
         {
             log.LogError(ex, "이슈 알림 처리 중 오류: {Key}", issueKey);
             return Results.Json(
-                new UploadResponse(false, null, "서버 내부 오류로 전송하지 못했습니다."),
+                new IssueResponse(false, null, "서버 내부 오류로 전송하지 못했습니다.", null),
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+    })
+    .RequireRateLimiting("issue");
+
+// 이슈가 수정(상태 변경)되면 /issue 로 올라간 원문 메시지의 스레드에 답글을 단다.
+app.MapPost("/issue/update", async (
+        IssueUpdateRequest? body,
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+    {
+        var log = loggerFactory.CreateLogger("IssueUpdate");
+        var relay = configuration.GetSection("Relay");
+
+        string botToken  = relay.GetValue<string>("SlackBotToken") ?? string.Empty;
+        string channelId = relay.GetValue<string>("SlackChannelId") ?? string.Empty;
+        string baseUrl   = relay.GetValue<string>("IssueBaseUrl") ?? "http://pjtgw.bluehole.net:8080/";
+
+        if (string.IsNullOrWhiteSpace(botToken) || string.IsNullOrWhiteSpace(channelId))
+        {
+            log.LogError("SlackBotToken 또는 SlackChannelId가 설정되지 않았습니다.");
+            return Results.Json(
+                new IssueResponse(false, null, "서버에 Slack 설정이 없습니다. 관리자에게 문의하세요.", null),
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        if (body == null)
+            return Results.BadRequest(new IssueResponse(false, null, "JSON 본문이 없습니다.", null));
+
+        string issueKey = Clean(body.IssueKey, 32).ToUpperInvariant();
+        if (!issueKeyRegex.IsMatch(issueKey))
+            return Results.BadRequest(new IssueResponse(false, null, "issueKey 형식이 올바르지 않습니다. (예: BUG-2, CRASH-12)", null));
+
+        // Slack ts 형식(초 10자리.마이크로초 6자리)만 허용 — 임의 문자열이 Slack API로 넘어가지 않게 한다.
+        string messageTs = Clean(body.MessageTs, 32);
+        if (!messageTsRegex.IsMatch(messageTs))
+            return Results.BadRequest(new IssueResponse(false, null, "messageTs 형식이 올바르지 않습니다. (/issue 응답의 messageTs를 그대로 전달)", null));
+
+        string updater = Clean(body.Updater, 64);
+        if (string.IsNullOrWhiteSpace(updater) || !reporterRegex.IsMatch(updater))
+            return Results.BadRequest(new IssueResponse(false, null, "updater 형식이 올바르지 않습니다. (예: mk.ko)", null));
+
+        string status = Clean(body.Status, 40).Replace("\r", " ").Replace("\n", " ").Trim();
+        if (string.IsNullOrWhiteSpace(status))
+            return Results.BadRequest(new IssueResponse(false, null, "status가 비어 있습니다.", null));
+
+        updater = ApplyAlias(configuration, reporterRegex, updater, log);
+
+        try
+        {
+            var uploader = new SlackUploader(httpClientFactory.CreateClient("slack"), botToken);
+            string mention = await ResolveMentionAsync(uploader, relay, userIdCache, updater, cancellationToken);
+
+            string text = BuildIssueUpdateText(baseUrl, issueKey, mention, status);
+            string? replyTs = await uploader.PostMessageAsync(channelId, text, cancellationToken, threadTs: messageTs);
+
+            log.LogInformation("이슈 상태 스레드 알림 성공: {Key} updater={Updater} status={Status} thread={Thread}",
+                issueKey, updater, status, messageTs);
+            return Results.Ok(new IssueResponse(true, null, null, replyTs));
+        }
+        catch (SlackUploadException ex)
+        {
+            log.LogError(ex, "Slack 스레드 게시 실패: {Key} thread={Thread}", issueKey, messageTs);
+            return Results.Json(
+                new IssueResponse(false, null, ex.Message, null),
+                statusCode: StatusCodes.Status502BadGateway);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "이슈 상태 알림 처리 중 오류: {Key}", issueKey);
+            return Results.Json(
+                new IssueResponse(false, null, "서버 내부 오류로 전송하지 못했습니다.", null),
                 statusCode: StatusCodes.Status500InternalServerError);
         }
     })
@@ -360,6 +417,56 @@ static string BuildIssueText(string baseUrl, string issueKey, string mention)
     return $"*[GW 버그 리포트]*\n제보자 : {mention}\nIssue-key : {issueKey}\n리포트링크 : {url}";
 }
 
+/// <summary>이슈 상태 변경 스레드 답글. 수정자, issue-key, 작업상태, 리포트링크 4줄.</summary>
+static string BuildIssueUpdateText(string baseUrl, string issueKey, string mention, string status)
+{
+    string url = baseUrl.TrimEnd('/') + "/" + issueKey;
+
+    return $"수정자 : {mention}\nIssue-key : {issueKey}\n작업상태 : {SlackEscape(status)}\n리포트링크 : {url}";
+}
+
+/// <summary>Slack mrkdwn에서 특수 의미를 갖는 문자(&amp; &lt; &gt;)를 이스케이프한다(링크·멘션 주입 차단).</summary>
+static string SlackEscape(string value)
+    => value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+
+/// <summary>별칭 테이블(reporter-aliases.json)에 있으면 실제 계정으로 바꾼다 (예: skim -> s.kim).</summary>
+static string ApplyAlias(IConfiguration configuration, Regex accountRegex, string account, ILogger log)
+{
+    string? mapped = configuration.GetSection("ReporterAliases")[account];
+    if (!string.IsNullOrWhiteSpace(mapped) && accountRegex.IsMatch(mapped))
+    {
+        log.LogInformation("계정 별칭 적용: {From} -> {To}", account, mapped);
+        return mapped;
+    }
+    return account;
+}
+
+/// <summary>
+/// 계정 = Slack ID 이므로 이메일(계정@도메인)로 사용자 ID를 찾아 &lt;@U…&gt; 멘션을 만든다.
+/// 조회 실패(스코프 없음/사용자 없음) 시 평문 @계정으로 폴백한다. 성공한 조회만 캐시한다.
+/// </summary>
+static async Task<string> ResolveMentionAsync(
+    SlackUploader uploader,
+    IConfigurationSection relay,
+    System.Collections.Concurrent.ConcurrentDictionary<string, string> cache,
+    string account,
+    CancellationToken ct)
+{
+    string mention = "@" + account;
+    string emailDomain = relay.GetValue<string>("ReporterEmailDomain") ?? "bluehole.net";
+    if (string.IsNullOrWhiteSpace(emailDomain))
+        return mention;
+
+    string key = account.ToLowerInvariant();
+    if (!cache.TryGetValue(key, out string? userId))
+    {
+        userId = await uploader.LookupUserIdByEmailAsync($"{account}@{emailDomain}", ct);
+        if (userId != null) cache[key] = userId;
+    }
+
+    return userId != null ? $"<@{userId}>" : mention;
+}
+
 /// <summary>업로드된 zip 사본을 보관하고, 보관 기간이 지난 파일은 정리한다.</summary>
 static async Task ArchiveAsync(IFormFile file, string archiveDir, string fileName, int keepDays, CancellationToken ct)
 {
@@ -395,3 +502,9 @@ internal record UploadResponse(bool Ok, string? Permalink, string? Error);
 
 /// <summary>POST /issue 요청 본문 (클라 내부 크래시 리포트가 Issue-key 발행 후 전송).</summary>
 internal record IssueRequest(string? Reporter, string? IssueKey);
+
+/// <summary>POST /issue/update 요청 본문 (이슈 수정 시 원문 스레드에 답글).</summary>
+internal record IssueUpdateRequest(string? Updater, string? IssueKey, string? MessageTs, string? Status);
+
+/// <summary>/issue, /issue/update 응답. MessageTs 는 /issue 에서는 원문 키, /issue/update 에서는 답글 키.</summary>
+internal record IssueResponse(bool Ok, string? Permalink, string? Error, string? MessageTs);

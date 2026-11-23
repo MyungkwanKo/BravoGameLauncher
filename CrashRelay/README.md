@@ -79,10 +79,42 @@ Issue-key : BUG-2
   - 파일 위치: `D:\Build\CrashRelay\reporter-aliases.json` (없어도 됨, 수정 시 자동 재로드). 토큰이 든 `appsettings.Production.json`(읽기 전용 ACL)과 별개 파일이라 Jenkins가 갱신할 수 있다.
   - **Jenkins `GWLauncher` job 의 `REPORTER_ALIASES` 파라미터**(`DEPLOY_CRASH_RELAY` 체크 시 적용)로 추가한다. 형식 `요청계정:실제계정`을 쉼표/공백/줄바꿈으로 여러 개 입력 (예: `skim:s.kim, mkko:mk.ko`). 비우면 기존 목록 유지, 입력하면 기존 목록에 **누적 추가/덮어쓰기**, `skim:`처럼 값을 비우면 해당 별칭 **삭제**. 형식 오류는 서비스를 중지하기 전에 빌드를 실패시킨다.
 - 링크는 서버가 `Relay:IssueBaseUrl + 키`로 직접 만든다(클라가 URL을 보낼 수 없음).
+- **응답 `messageTs`**: 성공 시 Slack 원문 메시지 키가 내려온다(`{ "ok": true, "permalink": null, "error": null, "messageTs": "1763900000.123456" }`). 크래시 리포트 서버가 Issue-key와 함께 보관했다가 아래 `/issue/update` 호출 때 그대로 돌려준다.
 - 응답/상태 코드는 `/upload`와 같다(성공 200 `{ "ok": true }`, 형식 오류 400, 레이트리밋 429 — IP당 10분에 30회, Slack 실패 502, 설정 없음 503).
 
 ```
 curl -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/issue -H "Content-Type: application/json" -d "{\"reporter\":\"mk.ko\",\"issueKey\":\"BUG-2\"}"
+```
+
+### `POST /issue/update` (application/json) — 이슈 수정 시 원문 메시지의 스레드에 답글
+
+이슈가 수정(상태 변경)되면 크래시 리포트 서버가 호출한다. 서버는 `/issue`가 올린 원문 메시지에 스레드 답글을 단다(채널은 서버 설정 채널로 고정).
+
+```
+수정자 : @mk.ko
+Issue-key : BUG-2
+작업상태 : 수정완료
+리포트링크 : http://pjtgw.bluehole.net:8080/BUG-2
+```
+
+```json
+{ "updater": "mk.ko", "issueKey": "BUG-2", "messageTs": "1763900000.123456", "status": "수정완료" }
+```
+
+| 필드 | 필수 | 설명 |
+|------|------|------|
+| `updater` | O | 수정자 Windows 계정 (`reporter`와 같은 규칙, 별칭 보정·멘션 동일 적용) |
+| `issueKey` | O | `BUG-숫자` / `CRASH-숫자` |
+| `messageTs` | O | `/issue` 응답의 `messageTs` 그대로 (`10자리.6자리` 형식만 허용) |
+| `status` | O | 작업상태 문자열 (최대 40자, 줄바꿈 제거, Slack 특수문자 이스케이프). 값 종류는 제한하지 않는다 |
+
+- 응답은 `/issue`와 같은 형태이며 성공 시 `messageTs`에 **답글의 키**가 내려온다(원문 키와 다름, 보관 불필요).
+- 오류: `thread_not_found`/`message_not_found`는 502로 내려오며 원문 `messageTs`가 틀렸거나 채널이 바뀐 경우다. 형식 오류는 400, 레이트리밋은 `/issue`와 같은 한도(IP당 10분에 30회).
+- **채널을 변경한 경우** 변경 전 원문의 스레드에는 답글을 달 수 없다(새 채널에는 그 원문이 없음).
+- 원문 존재 여부는 서버가 검증하지 않는다(Slack이 판단). 사내망 전용 전제이며 `messageTs` 형식·레이트리밋으로만 제한한다.
+
+```
+curl -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/issue/update -H "Content-Type: application/json" -d "{\"updater\":\"mk.ko\",\"issueKey\":\"BUG-2\",\"messageTs\":\"<원문 messageTs>\",\"status\":\"수정완료\"}"
 ```
 
 ## 설정

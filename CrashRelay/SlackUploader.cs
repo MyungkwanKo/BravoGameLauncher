@@ -98,19 +98,27 @@ public sealed class SlackUploader
         return null;
     }
 
-    /// <summary>파일 없이 텍스트 메시지만 채널에 게시한다 (chat.postMessage, chat:write 스코프 필요).</summary>
-    public async Task PostMessageAsync(string channelId, string text, CancellationToken ct)
+    /// <summary>
+    /// 파일 없이 텍스트 메시지를 채널에 게시한다 (chat.postMessage, chat:write 스코프 필요).
+    /// threadTs 를 주면 해당 원문 메시지의 스레드 답글로 게시한다.
+    /// </summary>
+    /// <returns>게시된 메시지의 ts (스레드 원문 키로 쓴다)</returns>
+    public async Task<string?> PostMessageAsync(string channelId, string text, CancellationToken ct, string? threadTs = null)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, PostMessageEndpoint);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _botToken);
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        var fields = new Dictionary<string, string>
         {
             ["channel"]      = channelId,
             ["text"]         = text,
             ["link_names"]   = "1",   // 사용자 ID 조회 실패 시 평문 @계정 폴백이 멘션으로 처리되도록
             ["unfurl_links"] = "false",
             ["unfurl_media"] = "false"
-        });
+        };
+        if (!string.IsNullOrWhiteSpace(threadTs))
+            fields["thread_ts"] = threadTs;
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, PostMessageEndpoint);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _botToken);
+        request.Content = new FormUrlEncodedContent(fields);
 
         using var response = await _http.SendAsync(request, ct);
         string json = await response.Content.ReadAsStringAsync(ct);
@@ -120,6 +128,8 @@ public sealed class SlackUploader
 
         if (!root.TryGetProperty("ok", out var okProp) || !okProp.GetBoolean())
             throw new SlackUploadException($"chat.postMessage 실패: {ReadError(root)}");
+
+        return root.TryGetProperty("ts", out var ts) ? ts.GetString() : null;
     }
 
     private async Task<(string UploadUrl, string FileId)> GetUploadUrlAsync(string fileName, long length, CancellationToken ct)
@@ -209,6 +219,8 @@ public sealed class SlackUploader
             "invalid_auth"       => " (봇 토큰이 잘못되었거나 만료되었습니다)",
             "not_authed"         => " (봇 토큰이 설정되지 않았습니다)",
             "missing_scope"      => " (봇에 files:write / chat:write 스코프가 필요합니다)",
+            "thread_not_found"   => " (원문 messageTs가 잘못되었거나 원문이 올라간 채널과 현재 설정 채널이 다릅니다)",
+            "message_not_found"  => " (원문 messageTs에 해당하는 메시지가 없습니다)",
             _ => string.Empty
         };
 
