@@ -455,7 +455,8 @@ static (string FallbackText, string BlocksJson) BuildIssueMessage(string baseUrl
 }
 
 /// <summary>
-/// 작업상태가 완료 상태인지 판정한다. 공백을 제거하고 대소문자를 무시해 비교하며,
+/// 작업상태가 완료 상태인지 판정한다. 공백을 제거하고 대소문자를 무시하며, 완료 키워드를 "포함"하면 완료로 본다
+/// (예: "작업 완료 · 상태 변경"),
 /// 기본값은 "작업완료"/"수정완료"이고 Relay:CompletedStatuses 배열로 바꿀 수 있다.
 /// </summary>
 static bool IsCompletedStatus(IConfigurationSection relay, string status)
@@ -466,7 +467,7 @@ static bool IsCompletedStatus(IConfigurationSection relay, string status)
     IEnumerable<string> list = configured.Length > 0 ? configured : new[] { "작업 완료", "수정 완료" };
 
     string n = Norm(status);
-    return list.Any(x => Norm(x) == n);
+    return list.Any(x => n.Contains(Norm(x)));
 }
 
 /// <summary>이슈 상태 변경 스레드 답글. 수정자, issue-key, 작업상태, 리포트링크 4줄.</summary>
