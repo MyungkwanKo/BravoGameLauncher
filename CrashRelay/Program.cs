@@ -336,19 +336,20 @@ app.MapPost("/issue/update", async (
             log.LogInformation("이슈 상태 스레드 알림 성공: {Key} updater={Updater} status={Status} thread={Thread}",
                 issueKey, updater, status, messageTs);
 
-            // 작업 완료 상태면 원문에 완료 이모지 리액션을 단다. 스레드 답글은 이미 게시됐으므로
-            // 리액션 실패(스코프 없음·이모지 없음 등)는 로그만 남기고 요청 자체는 성공으로 처리한다.
-            if (IsCompletedStatus(relay, status))
+            // 작업상태에 따라 원문에 이모지 리액션을 단다(작업 완료 → :수정_완료:, 작업 보류 → :보류:).
+            // 스레드 답글은 이미 게시됐으므로 리액션 실패(스코프 없음·이모지 없음 등)는
+            // 로그만 남기고 요청 자체는 성공으로 처리한다.
+            string? reaction = ResolveStatusReaction(relay, status);
+            if (reaction != null)
             {
-                string reaction = relay.GetValue<string>("CompletedReaction") ?? "수정_완료";
                 try
                 {
                     await uploader.AddReactionAsync(channelId, messageTs, reaction, cancellationToken);
-                    log.LogInformation("원문 완료 리액션 추가: {Key} :{Emoji}:", issueKey, reaction);
+                    log.LogInformation("원문 리액션 추가: {Key} status={Status} :{Emoji}:", issueKey, status, reaction);
                 }
                 catch (SlackUploadException rex)
                 {
-                    log.LogWarning(rex, "원문 완료 리액션 추가 실패(답글은 게시됨): {Key} :{Emoji}:", issueKey, reaction);
+                    log.LogWarning(rex, "원문 리액션 추가 실패(답글은 게시됨): {Key} status={Status} :{Emoji}:", issueKey, status, reaction);
                 }
             }
 
@@ -455,19 +456,32 @@ static (string FallbackText, string BlocksJson) BuildIssueMessage(string baseUrl
 }
 
 /// <summary>
-/// 작업상태가 완료 상태인지 판정한다. 공백을 제거하고 대소문자를 무시하며, 완료 키워드를 "포함"하면 완료로 본다
-/// (예: "작업 완료 · 상태 변경"),
-/// 기본값은 "작업완료"/"수정완료"이고 Relay:CompletedStatuses 배열로 바꿀 수 있다.
+/// 작업상태에 해당하는 원문 리액션 이모지 이름을 돌려준다(없으면 null).
+/// 상태 문자열이 키워드를 "포함"하면 해당하며(공백 제거·대소문자 무시, 예: "작업 완료 · 상태 변경"),
+/// 완료를 먼저, 그다음 보류를 검사해 첫 번째로 일치하는 하나만 쓴다.
+///   완료: Relay:CompletedStatuses(기본 "작업 완료","수정 완료") → Relay:CompletedReaction(기본 수정_완료)
+///   보류: Relay:HoldStatuses(기본 "작업 보류")                  → Relay:HoldReaction(기본 보류)
 /// </summary>
-static bool IsCompletedStatus(IConfigurationSection relay, string status)
+static string? ResolveStatusReaction(IConfigurationSection relay, string status)
 {
     static string Norm(string v) => new string(v.Where(ch => !char.IsWhiteSpace(ch)).ToArray()).ToLowerInvariant();
 
-    string[] configured = relay.GetSection("CompletedStatuses").Get<string[]>() ?? Array.Empty<string>();
-    IEnumerable<string> list = configured.Length > 0 ? configured : new[] { "작업 완료", "수정 완료" };
-
     string n = Norm(status);
-    return list.Any(x => n.Contains(Norm(x)));
+
+    bool Matches(string section, string[] defaults)
+    {
+        string[] configured = relay.GetSection(section).Get<string[]>() ?? Array.Empty<string>();
+        IEnumerable<string> list = configured.Length > 0 ? configured : defaults;
+        return list.Any(x => !string.IsNullOrWhiteSpace(x) && n.Contains(Norm(x)));
+    }
+
+    if (Matches("CompletedStatuses", new[] { "작업 완료", "수정 완료" }))
+        return relay.GetValue<string>("CompletedReaction") ?? "수정_완료";
+
+    if (Matches("HoldStatuses", new[] { "작업 보류" }))
+        return relay.GetValue<string>("HoldReaction") ?? "보류";
+
+    return null;
 }
 
 /// <summary>이슈 상태 변경 스레드 답글. 수정자, issue-key, 작업상태, 리포트링크 4줄.</summary>

@@ -114,6 +114,7 @@ Issue-key : BUG-2
 | `status` | O | 작업상태 문자열 (최대 40자, 줄바꿈 제거, Slack 특수문자 이스케이프). 값 종류는 제한하지 않는다 |
 
 - **작업 완료 시 원문 이모지**: `status`가 완료 상태이면 스레드 답글에 더해 **원문에 `:수정_완료:` 리액션**을 추가한다(`reactions.add`). `status`가 완료 키워드를 **포함**하면(공백 제거·대소문자 무시, 예: `작업 완료 · 상태 변경`) 완료로 본다. 기본 키워드는 `작업 완료`/`수정 완료`, `Relay:CompletedStatuses`로 바꾼다. 이모지는 `Relay:CompletedReaction`(기본 `수정_완료`). 리액션 실패(스코프·이모지 없음)는 로그만 남기고 응답은 성공이다(답글은 이미 게시됨). **봇에 `reactions:write` 스코프 추가·앱 재설치가 필요**하다.
+- **작업 보류 시 원문 이모지**: `status`가 `작업 보류`를 **포함**하면(예: `작업 보류 · 대기`) 같은 방식으로 원문에 **`:보류:` 리액션**을 추가한다. 완료와 보류가 둘 다 포함되면 완료가 우선이다(리액션은 하나만). 상태가 바뀌어도 이전에 단 리액션은 **제거하지 않는다**(보류 → 완료 시 `:보류:`와 `:수정_완료:`가 함께 남음).
 - 응답은 `/issue`와 같은 형태이며 성공 시 `messageTs`에 **답글의 키**가 내려온다(원문 키와 다름, 보관 불필요).
 - 오류: `thread_not_found`/`message_not_found`는 502로 내려오며 원문 `messageTs`가 틀렸거나 채널이 바뀐 경우다. 형식 오류는 400, 레이트리밋은 `/issue`와 같은 한도(IP당 10분에 30회).
 - **채널을 변경한 경우** 변경 전 원문의 스레드에는 답글을 달 수 없다(새 채널에는 그 원문이 없음).
@@ -133,6 +134,8 @@ curl -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/issue/update -H
 | `Relay:IssueBaseUrl` | `http://pjtgw.bluehole.net:8080/` | `/issue` 메시지의 이슈 링크 기준 URL |
 | `Relay:CompletedStatuses` | `["작업 완료","수정 완료"]` | 원문에 완료 이모지를 다는 작업상태 키워드(상태 문자열이 이를 포함하면 적용, 공백·대소문자 무시) |
 | `Relay:CompletedReaction` | `수정_완료` | 완료 시 원문에 추가할 이모지 이름(콜론 제외) |
+| `Relay:HoldStatuses` | `["작업 보류"]` | 원문에 보류 이모지를 다는 작업상태 키워드(포함 매칭, 공백·대소문자 무시) |
+| `Relay:HoldReaction` | `보류` | 보류 시 원문에 추가할 이모지 이름(콜론 제외) |
 | `Relay:ReporterEmailDomain` | `bluehole.net` | 제보자 계정 → Slack 사용자 조회용 이메일 도메인(빈 값이면 조회 생략, 평문 멘션) |
 | `Relay:MaxUploadBytes` | 536870912 (512MB) | 업로드 상한 |
 | `Relay:SlackBotToken` | (없음) | `xoxb-` 봇 토큰 — **커밋 금지** |
