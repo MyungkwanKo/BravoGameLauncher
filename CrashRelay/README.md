@@ -59,13 +59,13 @@ Issue-key 접두사에 따라 제목이 달라지고 본문은 같다. 제목은
 
 ```
 :jira-bug: [GW 버그 리포트]        ← BUG-숫자
-:경광등: [GW 크래시 리포트]        ← CRASH-숫자
+:rotating_light: [GW 크래시 리포트]  ← CRASH-숫자 (🚨)
 제보자 : @mk.ko
 Issue-key : BUG-2
 리포트링크 : http://pjtgw.bluehole.net:8080/BUG-2
 ```
 
-`:jira-bug:`, `:경광등:`은 워크스페이스에 등록된 커스텀 이모지여야 렌더링된다(없으면 `:이름:` 글자 그대로 보임).
+`:jira-bug:`는 워크스페이스 커스텀 이모지, `:rotating_light:`는 Slack 표준 이모지(🚨)다. API 메시지에서는 영문 표준 이름만 렌더링되며 한글 이모지명(`:경광등:`)은 Slack 입력창에서만 변환되므로 쓰지 않는다. 이모지가 없으면 `:이름:` 글자 그대로 보인다.
 
 ```json
 { "reporter": "mk.ko", "issueKey": "BUG-2" }

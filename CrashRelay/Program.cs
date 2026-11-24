@@ -430,7 +430,7 @@ static string BuildComment(string build, string user, string machine, string mes
 /// <summary>
 /// 이슈 알림 원문 메시지. Issue-key 접두사로 제목을 구분하고 본문은 동일하다.
 ///   BUG-   → :jira-bug: [GW 버그 리포트]
-///   CRASH- → :경광등: [GW 크래시 리포트]
+///   CRASH- → :rotating_light: [GW 크래시 리포트] (🚨. 한글 이모지명 :경광등:은 API 메시지에서 렌더링되지 않아 영문 표준 이름 사용)
 /// 제목은 Block Kit header(큰 제목 스타일)로 보낸다. mention은 서버가 검증·생성한 값만 받는다.
 /// </summary>
 static (string FallbackText, string BlocksJson) BuildIssueMessage(string baseUrl, string issueKey, string mention)
@@ -438,7 +438,7 @@ static (string FallbackText, string BlocksJson) BuildIssueMessage(string baseUrl
     string url = baseUrl.TrimEnd('/') + "/" + issueKey;
 
     string title = issueKey.StartsWith("CRASH-", StringComparison.OrdinalIgnoreCase)
-        ? ":경광등: [GW 크래시 리포트]"
+        ? ":rotating_light: [GW 크래시 리포트]"
         : ":jira-bug: [GW 버그 리포트]";
 
     string body = $"제보자 : {mention}\nIssue-key : {issueKey}\n리포트링크 : {url}";
