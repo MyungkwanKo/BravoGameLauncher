@@ -18,6 +18,7 @@ public sealed class SlackUploader
     private const string GetUploadUrlEndpoint  = "https://slack.com/api/files.getUploadURLExternal";
     private const string CompleteUploadEndpoint = "https://slack.com/api/files.completeUploadExternal";
     private const string PostMessageEndpoint    = "https://slack.com/api/chat.postMessage";
+    private const string ReactionsAddEndpoint     = "https://slack.com/api/reactions.add";
     private const string LookupByEmailEndpoint  = "https://slack.com/api/users.lookupByEmail";
 
     private readonly HttpClient _http;
@@ -65,6 +66,37 @@ public sealed class SlackUploader
     }
 
     /// <summary>
+    /// 메시지에 이모지 리액션을 단다 (reactions.add, reactions:write 스코프 필요).
+    /// 이미 같은 리액션이 있으면(already_reacted) 성공으로 본다.
+    /// </summary>
+    /// <param name="emojiName">콜론 없는 이모지 이름 (예: 수정_완료)</param>
+    public async Task AddReactionAsync(string channelId, string messageTs, string emojiName, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, ReactionsAddEndpoint);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _botToken);
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["channel"]   = channelId,
+            ["timestamp"] = messageTs,
+            ["name"]      = emojiName
+        });
+
+        using var response = await _http.SendAsync(request, ct);
+        string json = await response.Content.ReadAsStringAsync(ct);
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("ok", out var okProp) && okProp.GetBoolean())
+            return;
+
+        if (root.TryGetProperty("error", out var err) && err.GetString() == "already_reacted")
+            return;
+
+        throw new SlackUploadException($"reactions.add 실패: {ReadError(root)}");
+    }
+
+    /// <summary>
     /// 이메일로 Slack 사용자 ID를 찾는다 (users.lookupByEmail, users:read.email 스코프 필요).
     /// 못 찾거나 실패하면 null — 호출부가 평문 폴백을 쓴다.
     /// </summary>
@@ -103,7 +135,7 @@ public sealed class SlackUploader
     /// threadTs 를 주면 해당 원문 메시지의 스레드 답글로 게시한다.
     /// </summary>
     /// <returns>게시된 메시지의 ts (스레드 원문 키로 쓴다)</returns>
-    public async Task<string?> PostMessageAsync(string channelId, string text, CancellationToken ct, string? threadTs = null)
+    public async Task<string?> PostMessageAsync(string channelId, string text, CancellationToken ct, string? threadTs = null, string? blocksJson = null)
     {
         var fields = new Dictionary<string, string>
         {
@@ -115,6 +147,10 @@ public sealed class SlackUploader
         };
         if (!string.IsNullOrWhiteSpace(threadTs))
             fields["thread_ts"] = threadTs;
+
+        // Block Kit 을 주면 blocks 로 렌더링되고 text 는 알림 미리보기/접근성용 대체 텍스트가 된다.
+        if (!string.IsNullOrWhiteSpace(blocksJson))
+            fields["blocks"] = blocksJson;
 
         using var request = new HttpRequestMessage(HttpMethod.Post, PostMessageEndpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _botToken);
@@ -219,6 +255,7 @@ public sealed class SlackUploader
             "invalid_auth"       => " (봇 토큰이 잘못되었거나 만료되었습니다)",
             "not_authed"         => " (봇 토큰이 설정되지 않았습니다)",
             "missing_scope"      => " (봇에 files:write / chat:write 스코프가 필요합니다)",
+            "invalid_name"       => " (워크스페이스에 없는 이모지 이름입니다. 커스텀 이모지 등록 여부를 확인하세요)",
             "thread_not_found"   => " (원문 messageTs가 잘못되었거나 원문이 올라간 채널과 현재 설정 채널이 다릅니다)",
             "message_not_found"  => " (원문 messageTs에 해당하는 메시지가 없습니다)",
             _ => string.Empty

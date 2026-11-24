@@ -55,12 +55,17 @@ GW Launcher ──(multipart POST)──> Nginx /crash-report/ ──> 127.0.0.1
 
 클라가 자체 크래시 리포트로 Issue-key(버그 리포트 `BUG-숫자`, 크래시 리포트 `CRASH-숫자`)를 발급받은 뒤 호출한다. 서버는 `chat.postMessage`로 아래 3줄 메시지를 채널에 올린다.
 
+Issue-key 접두사에 따라 제목이 달라지고 본문은 같다. 제목은 Block Kit `header`(큰 제목 스타일)로 게시한다.
+
 ```
-[GW 버그 리포트]
+:jira-bug: [GW 버그 리포트]        ← BUG-숫자
+:경광등: [GW 크래시 리포트]        ← CRASH-숫자
 제보자 : @mk.ko
 Issue-key : BUG-2
 리포트링크 : http://pjtgw.bluehole.net:8080/BUG-2
 ```
+
+`:jira-bug:`, `:경광등:`은 워크스페이스에 등록된 커스텀 이모지여야 렌더링된다(없으면 `:이름:` 글자 그대로 보임).
 
 ```json
 { "reporter": "mk.ko", "issueKey": "BUG-2" }
@@ -108,6 +113,7 @@ Issue-key : BUG-2
 | `messageTs` | O | `/issue` 응답의 `messageTs` 그대로 (`10자리.6자리` 형식만 허용) |
 | `status` | O | 작업상태 문자열 (최대 40자, 줄바꿈 제거, Slack 특수문자 이스케이프). 값 종류는 제한하지 않는다 |
 
+- **작업 완료 시 원문 이모지**: `status`가 완료 상태이면 스레드 답글에 더해 **원문에 `:수정_완료:` 리액션**을 추가한다(`reactions.add`). 완료 상태는 공백 제거·대소문자 무시로 비교하며 기본값은 `작업 완료`/`수정 완료`, `Relay:CompletedStatuses`로 바꾼다. 이모지는 `Relay:CompletedReaction`(기본 `수정_완료`). 리액션 실패(스코프·이모지 없음)는 로그만 남기고 응답은 성공이다(답글은 이미 게시됨). **봇에 `reactions:write` 스코프 추가·앱 재설치가 필요**하다.
 - 응답은 `/issue`와 같은 형태이며 성공 시 `messageTs`에 **답글의 키**가 내려온다(원문 키와 다름, 보관 불필요).
 - 오류: `thread_not_found`/`message_not_found`는 502로 내려오며 원문 `messageTs`가 틀렸거나 채널이 바뀐 경우다. 형식 오류는 400, 레이트리밋은 `/issue`와 같은 한도(IP당 10분에 30회).
 - **채널을 변경한 경우** 변경 전 원문의 스레드에는 답글을 달 수 없다(새 채널에는 그 원문이 없음).
@@ -125,6 +131,8 @@ curl -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/issue/update -H
 |----|--------|------|
 | `Relay:Port` | 5080 | Kestrel 리슨 포트 (localhost 전용) |
 | `Relay:IssueBaseUrl` | `http://pjtgw.bluehole.net:8080/` | `/issue` 메시지의 이슈 링크 기준 URL |
+| `Relay:CompletedStatuses` | `["작업 완료","수정 완료"]` | 원문에 완료 이모지를 다는 작업상태 값(공백·대소문자 무시) |
+| `Relay:CompletedReaction` | `수정_완료` | 완료 시 원문에 추가할 이모지 이름(콜론 제외) |
 | `Relay:ReporterEmailDomain` | `bluehole.net` | 제보자 계정 → Slack 사용자 조회용 이메일 도메인(빈 값이면 조회 생략, 평문 멘션) |
 | `Relay:MaxUploadBytes` | 536870912 (512MB) | 업로드 상한 |
 | `Relay:SlackBotToken` | (없음) | `xoxb-` 봇 토큰 — **커밋 금지** |
@@ -138,7 +146,7 @@ curl -X POST http://bravo-build.omnicraftlabs.co.kr/crash-report/issue/update -H
 ## Slack 앱 준비
 
 1. Slack 앱 생성 (KRAFTON은 Enterprise Grid라 조직 관리자 승인이 필요할 수 있음)
-2. **Bot Token Scopes**: `files:write`, `chat:write`
+2. **Bot Token Scopes**: `files:write`, `chat:write`, `users:read.email`(멘션 조회), `reactions:write`(작업 완료 이모지)
 3. 워크스페이스에 설치 후 `xoxb-` 토큰 발급
 4. **대상 채널에 봇을 초대** (`/invite @앱이름`) — 초대하지 않으면 `not_in_channel` 오류
 

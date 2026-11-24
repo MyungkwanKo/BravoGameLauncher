@@ -254,8 +254,9 @@ app.MapPost("/issue", async (
             var uploader = new SlackUploader(httpClientFactory.CreateClient("slack"), botToken);
             string mention = await ResolveMentionAsync(uploader, relay, userIdCache, reporter, cancellationToken);
 
-            string text = BuildIssueText(baseUrl, issueKey, mention);
-            string? messageTs = await uploader.PostMessageAsync(channelId, text, cancellationToken);
+            var (fallbackText, blocksJson) = BuildIssueMessage(baseUrl, issueKey, mention);
+            string? messageTs = await uploader.PostMessageAsync(
+                channelId, fallbackText, cancellationToken, blocksJson: blocksJson);
 
             log.LogInformation("이슈 알림 성공: {Key} reporter={Reporter} ts={Ts}", issueKey, reporter, messageTs);
 
@@ -334,6 +335,23 @@ app.MapPost("/issue/update", async (
 
             log.LogInformation("이슈 상태 스레드 알림 성공: {Key} updater={Updater} status={Status} thread={Thread}",
                 issueKey, updater, status, messageTs);
+
+            // 작업 완료 상태면 원문에 완료 이모지 리액션을 단다. 스레드 답글은 이미 게시됐으므로
+            // 리액션 실패(스코프 없음·이모지 없음 등)는 로그만 남기고 요청 자체는 성공으로 처리한다.
+            if (IsCompletedStatus(relay, status))
+            {
+                string reaction = relay.GetValue<string>("CompletedReaction") ?? "수정_완료";
+                try
+                {
+                    await uploader.AddReactionAsync(channelId, messageTs, reaction, cancellationToken);
+                    log.LogInformation("원문 완료 리액션 추가: {Key} :{Emoji}:", issueKey, reaction);
+                }
+                catch (SlackUploadException rex)
+                {
+                    log.LogWarning(rex, "원문 완료 리액션 추가 실패(답글은 게시됨): {Key} :{Emoji}:", issueKey, reaction);
+                }
+            }
+
             return Results.Ok(new IssueResponse(true, null, null, replyTs));
         }
         catch (SlackUploadException ex)
@@ -409,12 +427,46 @@ static string BuildComment(string build, string user, string machine, string mes
     return sb.ToString();
 }
 
-/// <summary>이슈 알림 Slack 메시지. mention은 서버가 검증·생성한 값(&lt;@U…&gt; 또는 @계정)만 받는다.</summary>
-static string BuildIssueText(string baseUrl, string issueKey, string mention)
+/// <summary>
+/// 이슈 알림 원문 메시지. Issue-key 접두사로 제목을 구분하고 본문은 동일하다.
+///   BUG-   → :jira-bug: [GW 버그 리포트]
+///   CRASH- → :경광등: [GW 크래시 리포트]
+/// 제목은 Block Kit header(큰 제목 스타일)로 보낸다. mention은 서버가 검증·생성한 값만 받는다.
+/// </summary>
+static (string FallbackText, string BlocksJson) BuildIssueMessage(string baseUrl, string issueKey, string mention)
 {
     string url = baseUrl.TrimEnd('/') + "/" + issueKey;
 
-    return $"*[GW 버그 리포트]*\n제보자 : {mention}\nIssue-key : {issueKey}\n리포트링크 : {url}";
+    string title = issueKey.StartsWith("CRASH-", StringComparison.OrdinalIgnoreCase)
+        ? ":경광등: [GW 크래시 리포트]"
+        : ":jira-bug: [GW 버그 리포트]";
+
+    string body = $"제보자 : {mention}\nIssue-key : {issueKey}\n리포트링크 : {url}";
+
+    // header 블록은 plain_text 만 허용하며 emoji:true 여야 :이모지: 코드가 렌더링된다.
+    string blocks = System.Text.Json.JsonSerializer.Serialize(new object[]
+    {
+        new { type = "header",  text = new { type = "plain_text", text = title, emoji = true } },
+        new { type = "section", text = new { type = "mrkdwn",     text = body } }
+    });
+
+    // blocks 를 쓰면 text 는 알림 미리보기용 대체 텍스트로만 쓰인다.
+    return ($"{title}\n{body}", blocks);
+}
+
+/// <summary>
+/// 작업상태가 완료 상태인지 판정한다. 공백을 제거하고 대소문자를 무시해 비교하며,
+/// 기본값은 "작업완료"/"수정완료"이고 Relay:CompletedStatuses 배열로 바꿀 수 있다.
+/// </summary>
+static bool IsCompletedStatus(IConfigurationSection relay, string status)
+{
+    static string Norm(string v) => new string(v.Where(ch => !char.IsWhiteSpace(ch)).ToArray()).ToLowerInvariant();
+
+    string[] configured = relay.GetSection("CompletedStatuses").Get<string[]>() ?? Array.Empty<string>();
+    IEnumerable<string> list = configured.Length > 0 ? configured : new[] { "작업 완료", "수정 완료" };
+
+    string n = Norm(status);
+    return list.Any(x => Norm(x) == n);
 }
 
 /// <summary>이슈 상태 변경 스레드 답글. 수정자, issue-key, 작업상태, 리포트링크 4줄.</summary>
